@@ -23,4 +23,21 @@ sealed class EditorIntent : MviIntent {
     data class DeleteNote(
         val noteId: Long
     ) : EditorIntent()
+
+    data object OpenFolderPicker : EditorIntent()
+
+    data class AssignToFolder(
+        val folderId: Long?
+    ) : EditorIntent()
+
+    data object StartCreateFolder : EditorIntent()
+
+    data class UpdateNewFolderName(val name: String) : EditorIntent()
+
+    data object CreateFolder : EditorIntent()
+
+    data class ToggleCheckbox(
+        val lineIndex: Int,
+        val checked: Boolean
+    ) : EditorIntent()
 }

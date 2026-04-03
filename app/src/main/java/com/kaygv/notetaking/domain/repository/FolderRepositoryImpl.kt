@@ -24,8 +24,8 @@ class FolderRepositoryImpl(
             .map { folders -> folders.map { it.toDomain() } }
     }
 
-    override suspend fun createFolder(folder: Folder) {
-        folderDao.insert(folder.toEntity())
+    override suspend fun createFolder(folder: Folder): Long {
+        return folderDao.insert(folder.toEntity())
     }
 
     override suspend fun updateFolder(folder: Folder) {
@@ -34,5 +34,9 @@ class FolderRepositoryImpl(
 
     override suspend fun deleteFolder(folder: Folder) {
         folderDao.delete(folder.toEntity())
+    }
+
+    override suspend fun deleteFolderById(folderId: Long) {
+        folderDao.deleteById(folderId)
     }
 }

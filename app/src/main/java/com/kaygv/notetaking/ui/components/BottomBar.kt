@@ -2,6 +2,7 @@ package com.kaygv.notetaking.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -30,24 +31,44 @@ fun BottomBar(
         NavigationBarItem(
             selected = currentPage == 0,
             onClick = { onTabSelected(0) },
-            icon = {
-                Icon(
-                Icons.Default.Home,
-                    contentDescription = "Home")
-                   },
+            icon = { HomeIcon(currentPage == 0) },
             label = { Text("Home") }
         )
 
         NavigationBarItem(
             selected = currentPage == 1,
             onClick = { onTabSelected(1) },
-            icon = {
-                Icon(
-                    ImageVector.vectorResource(id = R.drawable.folder_24px),
-                    contentDescription = "Folders")
-                   },
+            icon = { FolderIcon(currentPage == 1) },
             label = { Text("Folders") }
         )
 
     }
 }
+
+@Composable
+private fun FolderIcon(isActive: Boolean) =
+    if (!isActive) {
+        Icon(
+            ImageVector.vectorResource(id = R.drawable.folder_24px),
+            contentDescription = "Folders"
+        )
+    } else {
+        Icon(
+            ImageVector.vectorResource(id = R.drawable.folder_filled_24px),
+            contentDescription = "Folders"
+        )
+    }
+
+@Composable
+private fun HomeIcon(isActive: Boolean) =
+    if (isActive) {
+        Icon(
+            Icons.Default.Home,
+            contentDescription = "Home"
+        )
+    } else {
+        Icon(
+            Icons.Outlined.Home,
+            contentDescription = "Home"
+        )
+    }

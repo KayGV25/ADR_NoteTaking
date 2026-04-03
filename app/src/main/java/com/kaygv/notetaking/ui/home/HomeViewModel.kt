@@ -35,6 +35,9 @@ class HomeViewModel @Inject constructor(
         when (intent) {
             is HomeIntent.LoadNotes -> loadNotes()
             is HomeIntent.SearchNotes -> {
+                setState {
+                    copy(searchQuery = intent.query)
+                }
                 searchQueryFlow.value = intent.query
             }
             is HomeIntent.DeleteNote -> deleteNote(intent.noteId)

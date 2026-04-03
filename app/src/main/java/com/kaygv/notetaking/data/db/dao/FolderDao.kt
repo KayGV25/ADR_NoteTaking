@@ -28,4 +28,7 @@ interface FolderDao {
 
     @Delete
     suspend fun delete(folder: FolderEntity)
+
+    @Query("DELETE FROM folders WHERE id = :folderId")
+    suspend fun deleteById(folderId: Long)
 }

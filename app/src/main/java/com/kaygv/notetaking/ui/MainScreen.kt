@@ -28,7 +28,6 @@ fun MainScreen(
                     coroutineScope.launch {
                         pagerState.animateScrollToPage(page)
                     }
-
                 }
 
             )

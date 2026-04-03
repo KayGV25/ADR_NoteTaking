@@ -13,7 +13,11 @@ import androidx.compose.ui.unit.dp
 import com.kaygv.notetaking.ui.theme.Typography
 
 @Composable
-fun TopBar(title: String, leadingIcon: @Composable () -> Unit?, trailingIcon: @Composable () -> Unit?) {
+fun TopBar(
+    title: String,
+    leadingIcon: @Composable () -> Unit = { },
+    trailingIcon: @Composable () -> Unit = { }
+) {
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,

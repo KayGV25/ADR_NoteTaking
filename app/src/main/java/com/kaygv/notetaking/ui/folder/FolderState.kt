@@ -4,8 +4,7 @@ import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.ui.mvi.MviState
 
 data class FolderState(
-    val folders: List<Folder> = emptyList(),
     val newFolderName: String = "",
     val isLoading: Boolean = false,
-    val searchQuery: String = ""
+    val searchQuery: String = "",
 ) : MviState

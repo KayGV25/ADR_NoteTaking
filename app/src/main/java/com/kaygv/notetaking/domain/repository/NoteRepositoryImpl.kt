@@ -25,8 +25,8 @@ class NoteRepositoryImpl(
             .map { notes -> notes.map { it.toDomain() } }
     }
 
-    override suspend fun createNote(note: Note) {
-        noteDao.insert(note.toEntity())
+    override suspend fun createNote(note: Note): Long {
+        return noteDao.insert(note.toEntity())
     }
 
     override suspend fun updateNote(note: Note) {

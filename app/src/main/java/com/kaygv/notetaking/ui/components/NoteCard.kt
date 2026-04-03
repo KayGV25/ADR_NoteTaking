@@ -25,14 +25,14 @@ fun NoteCard(
         note.content.text
             .lineSequence()
             .drop(1)                // remove title
-            .joinToString("\n")
+            .joinToString(" ")
             .trim()
             .take(300)
     }
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp)
             .clickable { onClick() }
     ) {
         Column(
@@ -45,7 +45,7 @@ fun NoteCard(
             Text(
                 text = previewText,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 3,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }

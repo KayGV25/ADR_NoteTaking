@@ -28,22 +28,30 @@ fun AppNavGraph(
     NavHost(
         navController = navController,
         startDestination = Routes.MAIN,
-        enterTransition = { slideInHorizontally(
-            animationSpec = tween(500),
-            initialOffsetX = { it } // slide from right
-        ) },
-        exitTransition = { slideOutHorizontally(
-            animationSpec = tween(500),
-            targetOffsetX = { -it } // slide to left
-        ) },
-        popEnterTransition = { slideInHorizontally(
-            animationSpec = tween(500),
-            initialOffsetX = { -it } // slide from left
-        ) },
-        popExitTransition = { slideOutHorizontally(
-            animationSpec = tween(500),
-            targetOffsetX = { it } // slide to right
-        ) }
+        enterTransition = {
+            slideInHorizontally(
+                animationSpec = tween(500),
+                initialOffsetX = { it } // slide from right
+            )
+        },
+        exitTransition = {
+            slideOutHorizontally(
+                animationSpec = tween(500),
+                targetOffsetX = { -it } // slide to left
+            )
+        },
+        popEnterTransition = {
+            slideInHorizontally(
+                animationSpec = tween(500),
+                initialOffsetX = { -it } // slide from left
+            )
+        },
+        popExitTransition = {
+            slideOutHorizontally(
+                animationSpec = tween(500),
+                targetOffsetX = { it } // slide to right
+            )
+        }
     ) {
         composable(Routes.MAIN) {
             MainScreen(navController)
@@ -57,7 +65,7 @@ fun AppNavGraph(
                     defaultValue = -1L
                 }
             )
-        ) {  backStackEntry ->
+        ) { backStackEntry ->
             val noteId = backStackEntry.arguments?.getLong("noteId") ?: -1L
 
             EditorScreen(

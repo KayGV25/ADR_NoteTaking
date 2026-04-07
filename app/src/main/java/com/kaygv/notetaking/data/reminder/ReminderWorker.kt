@@ -1,26 +1,31 @@
 package com.kaygv.notetaking.data.reminder
 
 import android.content.Context
+import android.util.Log
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.kaygv.notetaking.domain.repository.ReminderRepository
 import com.kaygv.notetaking.utils.NotificationHelper
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 
-class ReminderWorker(
-    context: Context,
-    params: WorkerParameters
+@HiltWorker
+class ReminderWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val reminderRepo: ReminderRepository
 ) : CoroutineWorker(context, params) {
+
     override suspend fun doWork(): Result {
-
-        val noteId = inputData.getLong("noteId", -1)
-
-        if (noteId == -1L) {
-            return Result.failure()
-        }
+        Log.d("ReminderWorker", "WORKER STARTED")
+        val noteId = inputData.getLong("noteId", -1L)
 
         NotificationHelper.showReminderNotification(
-            context = applicationContext,
-            noteId = noteId
+            applicationContext,
+            noteId
         )
+        reminderRepo.deleteReminder(noteId)
 
         return Result.success()
     }

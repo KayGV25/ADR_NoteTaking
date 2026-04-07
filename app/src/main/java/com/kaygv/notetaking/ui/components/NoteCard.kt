@@ -1,6 +1,6 @@
 package com.kaygv.notetaking.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,7 +19,8 @@ import com.kaygv.notetaking.domain.model.Note
 @Composable
 fun NoteCard(
     note: Note,
-    onClick: () -> Unit,
+    onClick: () -> Unit = { },
+    onLongClick: () -> Unit = { }
 ) {
     val previewText = remember(note.content) {
         note.content.text
@@ -33,7 +34,10 @@ fun NoteCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = { onClick() },
+                onLongClick = { onLongClick() }
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

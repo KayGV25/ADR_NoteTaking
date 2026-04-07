@@ -10,6 +10,9 @@ import com.kaygv.notetaking.domain.repository.FolderRepository
 import com.kaygv.notetaking.domain.repository.NoteRepository
 import com.kaygv.notetaking.domain.repository.ReminderRepository
 import com.kaygv.notetaking.ui.mvi.BaseViewModel
+import com.kaygv.notetaking.ui.noteDialog.NoteAction
+import com.kaygv.notetaking.ui.noteDialog.NoteActionHandler
+import com.kaygv.notetaking.ui.noteDialog.NoteDialog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +31,7 @@ class EditorViewModel @Inject constructor(
 ) {
     private val typingFlow = MutableStateFlow("")
     private var isExisting: Boolean = false
+    private val noteActionHandler = NoteActionHandler(repo, reminderRepo)
 
     init {
         observeAutosave()
@@ -43,17 +47,47 @@ class EditorViewModel @Inject constructor(
                 isExisting = true
                 saveNote(exitAfter = true)
             }
+
             is EditorIntent.DeleteNote -> deleteNote(intent.noteId)
             is EditorIntent.OpenFolderPicker -> openFolderPicker()
             is EditorIntent.AssignToFolder -> assignToFolder(intent.folderId)
             is EditorIntent.StartCreateFolder -> {
                 setState { copy(isCreatingFolder = true) }
             }
+
             is EditorIntent.UpdateNewFolderName -> {
                 setState { copy(newFolderName = intent.name) }
             }
+
             is EditorIntent.CreateFolder -> createFolder()
             is EditorIntent.ToggleCheckbox -> toggleCheckbox(intent.lineIndex, intent.checked)
+            is EditorIntent.CloseSetReminderPicker -> {
+                setState {
+                    copy(
+                        dialog = NoteDialog.None,
+                        isSetReminderPickerVisible = false
+                    )
+                }
+            }
+
+            is EditorIntent.OpenSetReminderPicker -> {
+                val id = state.value.noteId ?: return
+                setState {
+                    copy(
+                        dialog = NoteDialog.Reminder(id, state.value.reminderTime)
+                    )
+                }
+            }
+
+            is EditorIntent.DismissDialog -> {
+                setState { copy(dialog = NoteDialog.None) }
+            }
+        }
+    }
+
+    fun handleAction(action: NoteAction) {
+        viewModelScope.launch {
+            noteActionHandler.handle(action)
         }
     }
 
@@ -369,8 +403,11 @@ class EditorViewModel @Inject constructor(
     private fun openFolderPicker() {
         viewModelScope.launch {
             val folders = folderRepo.getFolders().first()
+            val id = state.value.noteId ?: return@launch
+
             setState {
                 copy(
+                    dialog = NoteDialog.Folder(folders, id),
                     folders = folders,
                     isFolderPickerVisible = true
                 )

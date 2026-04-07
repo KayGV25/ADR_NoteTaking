@@ -40,4 +40,9 @@ sealed class EditorIntent : MviIntent {
         val lineIndex: Int,
         val checked: Boolean
     ) : EditorIntent()
+
+    data object CloseSetReminderPicker : EditorIntent()
+    data object OpenSetReminderPicker : EditorIntent()
+
+    object DismissDialog : EditorIntent()
 }

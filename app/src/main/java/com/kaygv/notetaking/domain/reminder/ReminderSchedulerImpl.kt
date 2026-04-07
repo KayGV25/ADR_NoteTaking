@@ -7,13 +7,13 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.kaygv.notetaking.data.reminder.ReminderWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
-import jakarta.inject.Inject
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
 class ReminderSchedulerImpl @Inject constructor(
     @ApplicationContext private val context: Context
-) : ReminderScheduler{
-    private val workManager = WorkManager.getInstance(context)
+) : ReminderScheduler {
+    private val workManager by lazy { WorkManager.getInstance(context) }
 
     override fun scheduleReminder(
         noteId: Long,

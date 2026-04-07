@@ -10,7 +10,7 @@ import com.kaygv.notetaking.domain.reminder.ReminderScheduler
 class ReminderRepositoryImpl(
     private val reminderDao: ReminderDao,
     private val scheduler: ReminderScheduler
-): ReminderRepository {
+) : ReminderRepository {
     override suspend fun getReminder(noteId: Long): Reminder {
         val entity = reminderDao.getReminder(noteId)
 

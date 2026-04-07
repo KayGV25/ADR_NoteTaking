@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
-abstract class BaseViewModel<I: MviIntent, S: MviState, E: MviEvent>(
+abstract class BaseViewModel<I : MviIntent, S : MviState, E : MviEvent>(
     initialState: S
 ) : ViewModel() {
     private val _state = MutableStateFlow(initialState)

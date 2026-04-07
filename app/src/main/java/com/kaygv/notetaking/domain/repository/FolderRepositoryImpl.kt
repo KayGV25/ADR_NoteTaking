@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.map
 
 class FolderRepositoryImpl(
     private val folderDao: FolderDao
-): FolderRepository {
+) : FolderRepository {
     override fun getFolders(): Flow<List<Folder>> {
         return folderDao.getAllFolders()
             .map { folders -> folders.map { it.toDomain() } }

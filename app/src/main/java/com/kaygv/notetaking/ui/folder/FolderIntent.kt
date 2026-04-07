@@ -10,7 +10,7 @@ sealed class FolderIntent : MviIntent {
 
     data object CreateFolder : FolderIntent()
 
-    data class DeleteFolder(val folder: Folder): FolderIntent()
+    data class DeleteFolder(val folder: Folder) : FolderIntent()
 
     data class SearchFolders(val query: String) : FolderIntent()
 }

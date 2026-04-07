@@ -5,7 +5,8 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "notes",
+@Entity(
+    tableName = "notes",
     foreignKeys = [
         ForeignKey(
             entity = FolderEntity::class,

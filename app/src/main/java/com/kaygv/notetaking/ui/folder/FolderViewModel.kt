@@ -31,6 +31,7 @@ class FolderViewModel @Inject constructor(
     init {
         observeFolders()
     }
+
     override fun processIntent(intent: FolderIntent) {
         when (intent) {
             is FolderIntent.UpdateName -> updateName(intent.name)
@@ -57,7 +58,8 @@ class FolderViewModel @Inject constructor(
                 Folder(
                     name = state.value.newFolderName,
                     createdAt = System.currentTimeMillis()
-                ))
+                )
+            )
             sendEvent(FolderEvent.FolderCreated)
         }
     }

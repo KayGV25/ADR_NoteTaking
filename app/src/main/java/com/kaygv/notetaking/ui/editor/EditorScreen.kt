@@ -1,25 +1,17 @@
 package com.kaygv.notetaking.ui.editor
 
-import android.util.Log
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,11 +28,12 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.kaygv.notetaking.ui.components.FolderPickerBottomSheet
+import com.kaygv.notetaking.domain.reminder.ReminderConstants
 import com.kaygv.notetaking.ui.components.OverflowMenu
 import com.kaygv.notetaking.ui.components.OverflowMenuItem
 import com.kaygv.notetaking.ui.components.TopBar
 import com.kaygv.notetaking.ui.editor.markdown.MarkdownTransformation
+import com.kaygv.notetaking.ui.noteDialog.NoteDialogHost
 import kotlinx.coroutines.android.awaitFrame
 
 @Composable
@@ -55,6 +47,7 @@ fun EditorScreen(
     val isExist = state.noteId != null
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
+    val isReminderExist = state.reminderTime != ReminderConstants.NO_REMINDER
 
     val topbarMenuList = mutableListOf(
         OverflowMenuItem(
@@ -65,12 +58,21 @@ fun EditorScreen(
         ),
 
         OverflowMenuItem(
-            title = "Set Reminder",
+            title = if (isReminderExist) {
+                "Remove Reminder"
+            } else {
+                "Set Reminder"
+            },
             onClick = {
-                // TODO open reminder picker
+                if (isReminderExist) {
+                    viewModel.processIntent(EditorIntent.RemoveReminder)
+                } else {
+                    viewModel.processIntent(EditorIntent.OpenSetReminderPicker)
+                }
             }
         ),
     )
+
     if (isExist)
         topbarMenuList.add(
             OverflowMenuItem(
@@ -99,7 +101,7 @@ fun EditorScreen(
 
         viewModel.event.collect { event ->
 
-            when(event) {
+            when (event) {
 
                 EditorEvent.NoteSaved -> {
                     navController.popBackStack()
@@ -131,43 +133,29 @@ fun EditorScreen(
                     IconButton(
                         onClick = { viewModel.processIntent(EditorIntent.SaveNote) }
                     ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                } },
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 trailingIcon = {
                     OverflowMenu(
                         items = topbarMenuList
                     )
                 }
-            )},
+            )
+        },
         modifier = Modifier
             .fillMaxSize()
     ) { padding ->
-        if (state.isFolderPickerVisible) {
-            FolderPickerBottomSheet(
-                folders = state.folders,
-                newFolderName = state.newFolderName,
-                isCreating = state.isCreatingFolder,
 
-                onStartCreate = {
-                    viewModel.processIntent(EditorIntent.StartCreateFolder)
-                },
-                onUpdateFolderName = {
-                    viewModel.processIntent(EditorIntent.UpdateNewFolderName(it))
-                },
-                onCreate = {
-                    viewModel.processIntent(EditorIntent.CreateFolder)
-                },
-
-                onSelect = {
-                    viewModel.processIntent(EditorIntent.AssignToFolder(it))
-                },
-                onDismiss = {
-                    viewModel.processIntent(
-                        EditorIntent.AssignToFolder(state.folderId)
-                    )
-                }
-            )
-        }
+        NoteDialogHost(
+            dialog = state.dialog,
+            onDismiss = {
+                viewModel.processIntent(EditorIntent.DismissDialog)
+            },
+            onAction = {
+                viewModel.handleAction(it)
+            }
+        )
 
         Column(
             modifier = Modifier
@@ -208,10 +196,13 @@ fun EditorScreen(
                                         val lineStart = layout.getLineStart(lineIndex)
 
                                         val checkboxLength = 6
-                                        val checkboxEnd = (lineStart + checkboxLength).coerceAtMost(layout.layoutInput.text.length)
+                                        val checkboxEnd =
+                                            (lineStart + checkboxLength).coerceAtMost(layout.layoutInput.text.length)
 
                                         val startBox = layout.getBoundingBox(lineStart)
-                                        val endBox = layout.getBoundingBox((checkboxEnd - 1).coerceAtLeast(lineStart))
+                                        val endBox = layout.getBoundingBox(
+                                            (checkboxEnd - 1).coerceAtLeast(lineStart)
+                                        )
 
                                         val isInCheckboxArea =
                                             offset.x in startBox.left..endBox.right &&
@@ -227,7 +218,10 @@ fun EditorScreen(
 
                                                 line.startsWith("- [x] ") -> {
                                                     viewModel.processIntent(
-                                                        EditorIntent.ToggleCheckbox(lineIndex, false)
+                                                        EditorIntent.ToggleCheckbox(
+                                                            lineIndex,
+                                                            false
+                                                        )
                                                     )
                                                 }
                                             }

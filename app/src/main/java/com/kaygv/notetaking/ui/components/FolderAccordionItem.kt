@@ -59,9 +59,10 @@ fun FolderAccordionItem(
                     .padding(bottom = 8.dp)
             ) {
                 folderWithNotes.notes.forEach { note ->
-                    NoteCard(note) {
-                        onNoteClick(note.id)
-                    }
+                    NoteCard(
+                        note,
+                        onClick = { onNoteClick(note.id) }
+                    )
                 }
             }
         }

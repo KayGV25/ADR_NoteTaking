@@ -5,6 +5,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.domain.reminder.ReminderConstants
 import com.kaygv.notetaking.ui.mvi.MviState
+import com.kaygv.notetaking.ui.noteDialog.NoteDialog
 
 data class EditorState(
     val noteId: Long? = null,
@@ -22,6 +23,9 @@ data class EditorState(
     val folders: List<Folder> = emptyList(),
 
     val newFolderName: String = "",
-    val isCreatingFolder: Boolean = false
+    val isCreatingFolder: Boolean = false,
+
+    val isSetReminderPickerVisible: Boolean = false,
+    val dialog: NoteDialog = NoteDialog.None
 
 ) : MviState

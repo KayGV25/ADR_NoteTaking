@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.domain.repository.FolderRepository
 import com.kaygv.notetaking.domain.repository.NoteRepository
+import com.kaygv.notetaking.ui.dialog.folderDialog.FolderDialog
 import com.kaygv.notetaking.ui.mvi.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
@@ -43,8 +44,67 @@ class FolderViewModel @Inject constructor(
                 }
                 searchQueryFlow.value = intent.query
             }
+
+            is FolderIntent.ConfirmDelete -> confirmDeleteFolder()
+            is FolderIntent.ConfirmRename -> confirmRenameFolder()
+            is FolderIntent.DismissDialog -> {
+                setState {
+                    copy(dialog = FolderDialog.None)
+                }
+            }
+            is FolderIntent.OnLongPressFolder -> {
+                setState {
+                    copy(dialog = FolderDialog.Menu(intent.folder))
+                }
+            }
+            is FolderIntent.OpenDeleteDialog -> {
+                setState {
+                    copy(
+                        dialog = FolderDialog.Delete(intent.folder)
+                    )
+                }
+            }
+            is FolderIntent.OpenRenameDialog -> {
+                setState {
+                    copy(
+                        dialog = FolderDialog.Rename(intent.folder),
+                        newFolderName = intent.folder.name
+                    )
+                }
+            }
         }
     }
+
+    private fun confirmDeleteFolder() {
+        val dialog = state.value.dialog as? FolderDialog.Delete ?: return
+        val folder = dialog.folder
+
+        viewModelScope.launch {
+            val notes = noteRepo.getNotesOnce()
+
+            notes.filter { it.folderId == folder.id }
+                .forEach {
+                    noteRepo.updateNote(it.copy(folderId = null))
+                }
+
+            repo.deleteFolder(folder)
+
+            setState { copy(dialog = FolderDialog.None) }
+        }
+    }
+
+    private fun confirmRenameFolder() {
+        val dialog = state.value.dialog as? FolderDialog.Rename ?: return
+        val folder = dialog.folder
+
+        viewModelScope.launch {
+            repo.updateFolder(
+                folder.copy(name = state.value.newFolderName)
+            )
+            setState { copy(dialog = FolderDialog.None) }
+        }
+    }
+
 
     private fun updateName(name: String) {
         setState {

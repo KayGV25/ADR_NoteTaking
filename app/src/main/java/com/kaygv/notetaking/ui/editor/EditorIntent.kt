@@ -1,6 +1,5 @@
 package com.kaygv.notetaking.ui.editor
 
-import androidx.compose.ui.text.input.TextFieldValue
 import com.kaygv.notetaking.ui.mvi.MviIntent
 
 sealed class EditorIntent : MviIntent {
@@ -8,9 +7,9 @@ sealed class EditorIntent : MviIntent {
         val noteId: Long
     ) : EditorIntent()
 
-    data class UpdateContent(
-        val content: TextFieldValue
-    ) : EditorIntent()
+//    data class UpdateContent(
+//        val content: TextFieldValue
+//    ) : EditorIntent()
 
     data class SetReminder(
         val reminderTime: Long
@@ -37,12 +36,28 @@ sealed class EditorIntent : MviIntent {
     data object CreateFolder : EditorIntent()
 
     data class ToggleCheckbox(
-        val lineIndex: Int,
-        val checked: Boolean
+//        val lineIndex: Int,
+        val id: String
     ) : EditorIntent()
 
     data object CloseSetReminderPicker : EditorIntent()
     data object OpenSetReminderPicker : EditorIntent()
 
-    object DismissDialog : EditorIntent()
+    data object DismissDialog : EditorIntent()
+
+    data object FormatBold : EditorIntent()
+    data object FormatItalic : EditorIntent()
+    data object FormatUnderline : EditorIntent()
+    data object InsertCheckbox : EditorIntent()
+    data object InsertBullet : EditorIntent()
+    data object InsertNumbered : EditorIntent()
+    data object ToggleImagePicker : EditorIntent()
+    data object ToggleLinkDialog : EditorIntent()
+
+    data class InsertImage(val uri: String) : EditorIntent()
+    data class InsertLink(val text: String, val url: String) : EditorIntent()
+
+    data class Indent(val id: String) : EditorIntent()
+    data class Outdent(val id: String) : EditorIntent()
+
 }

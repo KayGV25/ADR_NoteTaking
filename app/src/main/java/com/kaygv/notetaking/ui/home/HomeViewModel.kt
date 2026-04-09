@@ -5,10 +5,11 @@ import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.domain.repository.FolderRepository
 import com.kaygv.notetaking.domain.repository.NoteRepository
 import com.kaygv.notetaking.domain.repository.ReminderRepository
+import com.kaygv.notetaking.domain.model.Note
 import com.kaygv.notetaking.ui.mvi.BaseViewModel
-import com.kaygv.notetaking.ui.noteDialog.NoteAction
-import com.kaygv.notetaking.ui.noteDialog.NoteActionHandler
-import com.kaygv.notetaking.ui.noteDialog.NoteDialog
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteAction
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteActionHandler
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,9 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import javax.inject.Inject
 
 @OptIn(FlowPreview::class)
@@ -28,7 +32,7 @@ class HomeViewModel @Inject constructor(
     HomeState()
 ) {
     private val searchQueryFlow = MutableStateFlow("")
-    private val noteActionHandler = NoteActionHandler(repo, reminderRepo)
+    private val noteActionHandler = NoteActionHandler(repo, reminderRepo, folderRepo)
 
     init {
         processIntent(HomeIntent.LoadNotes)
@@ -137,7 +141,8 @@ class HomeViewModel @Inject constructor(
                 setState {
                     copy(
                         notes = notes,
-                        filteredNotes = notes
+                        filteredNotes = notes,
+                        groupedNotes = groupNotes(notes)
                     )
                 }
             }
@@ -153,9 +158,70 @@ class HomeViewModel @Inject constructor(
         setState {
             copy(
                 searchQuery = query,
-                filteredNotes = filteredNotes
+                filteredNotes = filteredNotes,
+                groupedNotes = groupNotes(filteredNotes)
             )
         }
+    }
+
+    private fun groupNotes(notes: List<Note>): List<Pair<String, List<Note>>> {
+        if (notes.isEmpty()) return emptyList()
+
+        val now = System.currentTimeMillis()
+        val calendar = Calendar.getInstance()
+
+        val sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000L
+        val thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000L
+
+        calendar.timeInMillis = now
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+
+        calendar.add(Calendar.MONTH, -1)
+        val startOfLastMonth = calendar.timeInMillis
+        val lastMonthName = SimpleDateFormat("MMMM", Locale.getDefault()).format(calendar.time)
+
+        calendar.add(Calendar.MONTH, -1)
+        val startOfNextLastMonth = calendar.timeInMillis
+        val nextLastMonthName = SimpleDateFormat("MMMM", Locale.getDefault()).format(calendar.time)
+
+        val sortedNotes = notes.sortedByDescending { it.updatedAt }
+
+        val prev7Days = mutableListOf<Note>()
+        val prev30Days = mutableListOf<Note>()
+        val lastMonthNotes = mutableListOf<Note>()
+        val nextLastMonthNotes = mutableListOf<Note>()
+        val yearlyNotes = mutableMapOf<Int, MutableList<Note>>()
+
+        for (note in sortedNotes) {
+            val time = note.updatedAt
+            when {
+                time >= sevenDaysAgo -> prev7Days.add(note)
+                time >= thirtyDaysAgo -> prev30Days.add(note)
+                time >= startOfLastMonth -> lastMonthNotes.add(note)
+                time >= startOfNextLastMonth -> nextLastMonthNotes.add(note)
+                else -> {
+                    calendar.timeInMillis = time
+                    val year = calendar.get(Calendar.YEAR)
+                    yearlyNotes.getOrPut(year) { mutableListOf() }.add(note)
+                }
+            }
+        }
+
+        val result = mutableListOf<Pair<String, List<Note>>>()
+        if (prev7Days.isNotEmpty()) result.add("Previous 7 days" to prev7Days)
+        if (prev30Days.isNotEmpty()) result.add("Previous 30 days" to prev30Days)
+        if (lastMonthNotes.isNotEmpty()) result.add(lastMonthName to lastMonthNotes)
+        if (nextLastMonthNotes.isNotEmpty()) result.add(nextLastMonthName to nextLastMonthNotes)
+
+        yearlyNotes.keys.sortedDescending().forEach { year ->
+            result.add(year.toString() to yearlyNotes[year]!!)
+        }
+
+        return result
     }
 
     private fun deleteNote(noteId: Long) {
@@ -187,7 +253,10 @@ class HomeViewModel @Inject constructor(
             val folders = folderRepo.getFolders().first()
             setState {
                 copy(
-                    dialog = NoteDialog.Folder(folders, state.value.selectedNote!!.id)
+                    dialog = NoteDialog.Folder(
+                        folders,
+                        state.value.selectedNote!!.id,
+                        state.value.selectedNote?.folderId)
                 )
             }
         }

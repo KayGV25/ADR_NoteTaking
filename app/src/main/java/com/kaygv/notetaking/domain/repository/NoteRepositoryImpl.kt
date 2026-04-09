@@ -5,6 +5,7 @@ import com.kaygv.notetaking.data.mapper.toDomain
 import com.kaygv.notetaking.data.mapper.toEntity
 import com.kaygv.notetaking.domain.model.Note
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class NoteRepositoryImpl(
@@ -14,6 +15,10 @@ class NoteRepositoryImpl(
     override fun getNotes(): Flow<List<Note>> {
         return noteDao.getAllNotes()
             .map { notes -> notes.map { it.toDomain() } }
+    }
+
+    override suspend fun getNotesOnce(): List<Note> {
+        return getNotes().first()
     }
 
     override suspend fun getNoteById(id: Long): Note? {

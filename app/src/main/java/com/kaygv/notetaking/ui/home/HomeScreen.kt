@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,7 +34,7 @@ import com.kaygv.notetaking.ui.components.NotePreviewConfig
 import com.kaygv.notetaking.ui.components.SearchBar
 import com.kaygv.notetaking.ui.editor.markdown.MarkdownTransformation
 import com.kaygv.notetaking.ui.navigation.Routes
-import com.kaygv.notetaking.ui.noteDialog.NoteDialogHost
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialogHost
 import java.util.Date
 import java.util.Locale
 
@@ -137,18 +140,29 @@ fun HomeScreen(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Top),
             ) {
-                items(state.filteredNotes) { note ->
-                    NoteCard(
-                        note,
-                        onClick = {
-                            navController.navigate("${Routes.EDITOR}?noteId=${note.id}")
-                        },
-                        onLongClick = {
-                            viewModel.processIntent(
-                                HomeIntent.OpenNoteMenu(note)
-                            )
-                        }
-                    )
+                state.groupedNotes.forEach { (header, notes) ->
+                    item {
+                        Text(
+                            text = header,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                    items(notes, key = { it.id }) { note ->
+                        NoteCard(
+                            note,
+                            onClick = {
+                                navController.navigate("${Routes.EDITOR}?noteId=${note.id}")
+                            },
+                            onLongClick = {
+                                viewModel.processIntent(
+                                    HomeIntent.OpenNoteMenu(note)
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }

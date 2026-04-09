@@ -55,6 +55,7 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.hilt.common)
     implementation(libs.androidx.hilt.work)
+    implementation(libs.androidx.compose.foundation.layout)
     ksp(libs.dagger.hilt.compiler)
     ksp(libs.androidx.hilt.compiler)
     implementation(libs.dagger.hilt.android)
@@ -70,4 +71,6 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 }

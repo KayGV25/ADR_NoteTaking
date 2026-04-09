@@ -9,15 +9,18 @@ import com.kaygv.notetaking.domain.reminder.ReminderConstants
 import com.kaygv.notetaking.domain.repository.FolderRepository
 import com.kaygv.notetaking.domain.repository.NoteRepository
 import com.kaygv.notetaking.domain.repository.ReminderRepository
+import com.kaygv.notetaking.ui.editor.markdown.EditorBlock
+import com.kaygv.notetaking.ui.editor.markdown.blocksToMarkdown
+import com.kaygv.notetaking.ui.editor.markdown.parseMarkdownToBlocks
 import com.kaygv.notetaking.ui.mvi.BaseViewModel
-import com.kaygv.notetaking.ui.noteDialog.NoteAction
-import com.kaygv.notetaking.ui.noteDialog.NoteActionHandler
-import com.kaygv.notetaking.ui.noteDialog.NoteDialog
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteAction
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteActionHandler
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -31,7 +34,7 @@ class EditorViewModel @Inject constructor(
 ) {
     private val typingFlow = MutableStateFlow("")
     private var isExisting: Boolean = false
-    private val noteActionHandler = NoteActionHandler(repo, reminderRepo)
+    private val noteActionHandler = NoteActionHandler(repo, reminderRepo, folderRepo)
 
     init {
         observeAutosave()
@@ -40,7 +43,6 @@ class EditorViewModel @Inject constructor(
     override fun processIntent(intent: EditorIntent) {
         when (intent) {
             is EditorIntent.LoadNote -> loadNote(intent.noteId)
-            is EditorIntent.UpdateContent -> updateContent(intent.content)
             is EditorIntent.SetReminder -> setReminderTime(intent.reminderTime)
             is EditorIntent.RemoveReminder -> removeReminder()
             is EditorIntent.SaveNote -> {
@@ -51,289 +53,495 @@ class EditorViewModel @Inject constructor(
             is EditorIntent.DeleteNote -> deleteNote(intent.noteId)
             is EditorIntent.OpenFolderPicker -> openFolderPicker()
             is EditorIntent.AssignToFolder -> assignToFolder(intent.folderId)
-            is EditorIntent.StartCreateFolder -> {
-                setState { copy(isCreatingFolder = true) }
-            }
-
-            is EditorIntent.UpdateNewFolderName -> {
-                setState { copy(newFolderName = intent.name) }
-            }
-
+            is EditorIntent.StartCreateFolder -> setState { copy(isCreatingFolder = true) }
+            is EditorIntent.UpdateNewFolderName -> setState { copy(newFolderName = intent.name) }
             is EditorIntent.CreateFolder -> createFolder()
-            is EditorIntent.ToggleCheckbox -> toggleCheckbox(intent.lineIndex, intent.checked)
+            is EditorIntent.ToggleCheckbox -> toggleCheckbox(intent.id)
             is EditorIntent.CloseSetReminderPicker -> {
-                setState {
-                    copy(
-                        dialog = NoteDialog.None,
-                        isSetReminderPickerVisible = false
-                    )
-                }
+                setState { copy(dialog = NoteDialog.None, isSetReminderPickerVisible = false) }
             }
 
             is EditorIntent.OpenSetReminderPicker -> {
                 val id = state.value.noteId ?: return
-                setState {
-                    copy(
-                        dialog = NoteDialog.Reminder(id, state.value.reminderTime)
-                    )
-                }
+                setState { copy(dialog = NoteDialog.Reminder(id, state.value.reminderTime)) }
             }
 
-            is EditorIntent.DismissDialog -> {
-                setState { copy(dialog = NoteDialog.None) }
+            is EditorIntent.DismissDialog -> setState { copy(dialog = NoteDialog.None) }
+            is EditorIntent.FormatBold -> formatCurrent("**")
+            is EditorIntent.FormatItalic -> formatCurrent("*")
+            is EditorIntent.FormatUnderline -> formatCurrent("__")
+            is EditorIntent.InsertCheckbox -> insertCheckboxBlock()
+            is EditorIntent.InsertBullet -> insertBulletBlock()
+            is EditorIntent.InsertNumbered -> insertNumberedBlock()
+            is EditorIntent.ToggleImagePicker -> {
+                setState { copy(isImagePickerOpen = !state.value.isImagePickerOpen) }
             }
+
+            is EditorIntent.ToggleLinkDialog -> {
+                setState { copy(isLinkDialogOpen = !state.value.isLinkDialogOpen) }
+            }
+
+            is EditorIntent.InsertImage -> insertImageBlock(intent.uri)
+            is EditorIntent.InsertLink -> insertLinkBlock(intent.text, intent.url)
+
+            is EditorIntent.Indent -> indentBlock(intent.id)
+            is EditorIntent.Outdent -> outdentBlock(intent.id)
+
         }
     }
 
-    fun handleAction(action: NoteAction) {
-        viewModelScope.launch {
-            noteActionHandler.handle(action)
+    fun updateBlock(id: String, value: TextFieldValue) {
+        val updated = state.value.blocks.toMutableList()
+        val index = updated.indexOfFirst { it.id == id }
+        if (index == -1) return
+        val currentBlock = updated[index]
+
+        setState {
+            copy(
+                currentBlockId = id,
+                currentSelection = value.selection
+            )
         }
+
+        if (currentBlock is EditorBlock.Heading) {
+            val cleanedText = value.text.replace("\n", " ")
+            updated[index] = currentBlock.copy(value = value.copy(text = cleanedText))
+
+            val normalized = normalizeNumbering(updated)
+            setState {
+                copy(
+                    blocks = normalized,
+                    currentSelection = value.selection
+                )
+            }
+            updateTyping(blocksToMarkdown(normalized))
+            return
+        }
+
+        val text = value.text
+        val numberedRegex = Regex("""^\s*(\d+)\.\s""")
+        val newBlock = when {
+            text.startsWith("### ") -> EditorBlock.Heading(
+                id = currentBlock.id, level = 3,
+                value = value.copy(
+                    text = text.removePrefix("### "),
+                    selection = TextRange((value.selection.start - 4).coerceAtLeast(0))
+                )
+            )
+
+            text.startsWith("## ") -> EditorBlock.Heading(
+                id = currentBlock.id, level = 2,
+                value = value.copy(
+                    text = text.removePrefix("## "),
+                    selection = TextRange((value.selection.start - 3).coerceAtLeast(0))
+                )
+            )
+
+            text.startsWith("# ") -> EditorBlock.Heading(
+                id = currentBlock.id, level = 1,
+                value = value.copy(
+                    text = text.removePrefix("# "),
+                    selection = TextRange((value.selection.start - 2).coerceAtLeast(0))
+                )
+            )
+
+            text.startsWith("- [ ] ") && currentBlock !is EditorBlock.Checkbox -> EditorBlock.Checkbox(
+                id = currentBlock.id, checked = false,
+                value = value.copy(
+                    text = text.removePrefix("- [ ] "),
+                    selection = TextRange((value.selection.start - 6).coerceAtLeast(0))
+                )
+            )
+
+            text.startsWith("- [x] ") && currentBlock !is EditorBlock.Checkbox -> EditorBlock.Checkbox(
+                id = currentBlock.id, checked = true,
+                value = value.copy(
+                    text = text.removePrefix("- [x] "),
+                    selection = TextRange((value.selection.start - 6).coerceAtLeast(0))
+                )
+            )
+
+            text.startsWith("- ") && currentBlock !is EditorBlock.Bullet && currentBlock !is EditorBlock.Checkbox -> EditorBlock.Bullet(
+                id = currentBlock.id,
+                value = value.copy(
+                    text = text.removePrefix("- "),
+                    selection = TextRange((value.selection.start - 2).coerceAtLeast(0))
+                )
+            )
+
+            numberedRegex.containsMatchIn(text) && currentBlock !is EditorBlock.Numbered -> {
+                val match = numberedRegex.find(text)!!
+                val number = match.groupValues[1].toInt()
+                val prefixLength = match.value.length
+
+                EditorBlock.Numbered(
+                    id = currentBlock.id,
+                    number = number,
+                    indent = 0,
+                    value = value.copy(
+                        text = text.removePrefix(match.value),
+                        selection = TextRange((value.selection.start - prefixLength).coerceAtLeast(0))
+                    )
+                )
+            }
+
+            else -> updateBlockValue(currentBlock, value)
+        }
+
+        updated[index] = newBlock
+        val normalized = if (newBlock is EditorBlock.Numbered) normalizeNumbering(updated) else updated
+        setState {
+            copy(
+                blocks = normalized,
+                currentSelection = value.selection
+            )
+        }
+        updateTyping(blocksToMarkdown(normalized))
+    }
+
+    private fun formatCurrent(prefix: String, suffix: String = prefix) {
+        val id = state.value.currentBlockId ?: return
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == id }
+        if (index == -1) return
+        val block = blocks[index]
+
+        val value = when (block) {
+            is EditorBlock.Paragraph -> block.value
+            is EditorBlock.Heading -> block.value
+            is EditorBlock.Bullet -> block.value
+            is EditorBlock.Checkbox -> block.value
+            else -> return
+        }
+
+        val text = value.text
+        var start = value.selection.start
+        var end = value.selection.end
+        if (start > end) { val temp = start; start = end; end = temp }
+
+        // 1. Expand boundaries to include all adjacent formatting markers (*, _, ~)
+        var left = start
+        while (left > 0 && text[left - 1] in "*_~") left--
+        var right = end
+        while (right < text.length && text[right] in "*_~") right++
+
+        // 2. Identify the "core" content by looking for markers at the edges of this expanded range
+        var contentStart = left
+        while (contentStart < right && text[contentStart] in "*_~") contentStart++
+        var contentEnd = right
+        while (contentEnd > contentStart && text[contentEnd - 1] in "*_~") contentEnd--
+
+        val content = text.substring(contentStart, contentEnd)
+        val fullPrefix = text.substring(left, contentStart)
+        val fullSuffix = text.substring(contentEnd, right)
+
+        // 3. Analyze current style states based on markers
+        val starCount = minOf(fullPrefix.count { it == '*' }, fullSuffix.count { it == '*' })
+        val hasUnderline = fullPrefix.contains("__") && fullSuffix.contains("__")
+        val hasStrike = fullPrefix.contains("~~") && fullSuffix.contains("~~")
+
+        var bold = starCount >= 2
+        var italic = starCount % 2 == 1
+        var underline = hasUnderline
+        var strike = hasStrike
+
+        // 4. Toggle the requested style
+        when (prefix) {
+            "**" -> bold = !bold
+            "*" -> italic = !italic
+            "__" -> underline = !underline
+            "~~" -> strike = !strike
+        }
+
+        // 5. Reconstruct the markers and text
+        val resPrefix = StringBuilder()
+        val totalStars = (if (bold) 2 else 0) + (if (italic) 1 else 0)
+        // Stars go first to keep bold+italic together (***)
+        if (totalStars > 0) resPrefix.append("*".repeat(totalStars))
+        if (underline) resPrefix.append("__")
+        if (strike) resPrefix.append("~~")
+
+        val resSuffix = if (underline || strike) {
+            // Reverse order for suffix if nested
+            val s = StringBuilder()
+            if (strike) s.append("~~")
+            if (underline) s.append("__")
+            if (totalStars > 0) s.append("*".repeat(totalStars))
+            s.toString()
+        } else {
+            resPrefix.toString()
+        }
+
+        val newText = text.substring(0, left) + resPrefix.toString() + content + resSuffix + text.substring(right)
+
+        // 6. Calculate new selection
+        val newSelection = if (start == end && content.isEmpty()) {
+            TextRange(left + resPrefix.length)
+        } else {
+            // Keep selection on the content
+            TextRange(left + resPrefix.length, left + resPrefix.length + content.length)
+        }
+
+        val newValue = TextFieldValue(text = newText, selection = newSelection)
+        blocks[index] = updateBlockValue(block, newValue)
+        setState {
+            copy(
+                blocks = blocks,
+                currentSelection = newSelection
+            )
+        }
+        updateTyping(blocksToMarkdown(blocks))
+    }
+
+    fun splitBlock(id: String) {
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == id }
+        if (index == -1) return
+
+        val block = blocks[index]
+
+        // FIX: Empty bullet or checkbox → exit the list type by replacing the block
+        // in-place with a paragraph.
+        val isEmptyListBlock = when (block) {
+            is EditorBlock.Bullet -> block.value.text.isEmpty()
+            is EditorBlock.Numbered -> block.value.text.isEmpty()
+            is EditorBlock.Checkbox -> block.value.text.isEmpty()
+            else -> false
+        }
+        if (isEmptyListBlock) {
+            val paragraph = EditorBlock.Paragraph(value = TextFieldValue(""))
+            blocks[index] = paragraph
+            setState {
+                copy(
+                    blocks = blocks,
+                    currentBlockId = paragraph.id,
+                    currentSelection = TextRange.Zero
+                )
+            }
+            updateTyping(blocksToMarkdown(blocks))
+            return
+        }
+
+        // Normal split at cursor position
+        val (before, after) = when (block) {
+            is EditorBlock.Paragraph -> split(block.value)
+            is EditorBlock.Heading -> split(block.value)
+            is EditorBlock.Bullet -> split(block.value)
+            is EditorBlock.Checkbox -> split(block.value)
+            is EditorBlock.Numbered -> split(block.value)
+            else -> return
+        }
+
+        val newBlock = when (block) {
+            is EditorBlock.Paragraph -> EditorBlock.Paragraph(value = after)
+
+            is EditorBlock.Heading -> {
+                // Heading always splits into heading + paragraph
+                blocks[index] = block.copy(value = before)
+                val nb = EditorBlock.Paragraph(value = after)
+                blocks.add(index + 1, nb)
+                val finalBlocks = blocks.toList()
+                setState {
+                    copy(blocks = finalBlocks, currentBlockId = nb.id, currentSelection = TextRange.Zero)
+                }
+                updateTyping(blocksToMarkdown(finalBlocks))
+                return
+            }
+
+            is EditorBlock.Bullet -> EditorBlock.Bullet(
+                indent = block.indent,
+                value = after
+            )
+            is EditorBlock.Numbered -> EditorBlock.Numbered(
+                value = after,
+                number = block.number + 1,
+                indent = block.indent
+            )
+
+            is EditorBlock.Checkbox -> EditorBlock.Checkbox(checked = false, value = after)
+
+        }
+
+        blocks[index] = updateBlockValue(block, before)
+        blocks.add(index + 1, newBlock)
+
+        val normalized = normalizeNumbering(blocks)
+        setState {
+            copy(
+                blocks = normalized,
+                currentBlockId = newBlock.id,
+                currentSelection = TextRange(0)
+            )
+        }
+        updateTyping(blocksToMarkdown(normalized))
+    }
+
+    fun mergeWithPrevious(id: String) {
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == id }
+        if (index <= 0) return
+
+        val current = blocks[index]
+        val prev = blocks[index - 1]
+
+        if (current is EditorBlock.Image || prev is EditorBlock.Image) return
+
+        val currentText = extractText(current)
+
+        // CASE 1: Current block is empty → delete it, move cursor to end of previous.
+        // We write the new selection into the prev block's TextFieldValue so that
+        // LaunchedEffect(value) in BlockTextField detects the change and syncs internalValue.
+        if (currentText.isEmpty()) {
+            blocks.removeAt(index)
+            val prevText = extractText(prev)
+            val cursorAtEnd = TextRange(prevText.length)
+            val updatedPrev = updateBlockValue(prev, TextFieldValue(prevText, cursorAtEnd))
+            blocks[index - 1] = updatedPrev
+            setState {
+                copy(
+                    blocks = blocks,
+                    currentBlockId = updatedPrev.id,
+                    currentSelection = cursorAtEnd
+                )
+            }
+            updateTyping(blocksToMarkdown(blocks))
+            return
+        }
+
+        // CASE 2: Current block has content → merge text into previous block.
+        val prevText = extractText(prev)
+        val mergedText = prevText + currentText
+        val cursorAfterMerge = TextRange(prevText.length)
+
+        val updatedPrev = when (prev) {
+            is EditorBlock.Paragraph -> prev.copy(
+                value = TextFieldValue(
+                    mergedText,
+                    cursorAfterMerge
+                )
+            )
+
+            is EditorBlock.Heading -> prev.copy(
+                value = TextFieldValue(
+                    mergedText,
+                    cursorAfterMerge
+                )
+            )
+
+            is EditorBlock.Bullet -> prev.copy(value = TextFieldValue(mergedText, cursorAfterMerge))
+            is EditorBlock.Numbered -> prev.copy(
+                value = TextFieldValue(
+                    mergedText,
+                    cursorAfterMerge
+                )
+            )
+
+            is EditorBlock.Checkbox -> prev.copy(
+                value = TextFieldValue(
+                    mergedText,
+                    cursorAfterMerge
+                )
+            )
+        }
+
+        blocks[index - 1] = updatedPrev
+        blocks.removeAt(index)
+
+        setState {
+            copy(
+                blocks = blocks,
+                currentBlockId = updatedPrev.id,
+                currentSelection = cursorAfterMerge
+            )
+        }
+        updateTyping(blocksToMarkdown(blocks))
+    }
+
+    private fun updateBlockValue(block: EditorBlock, newValue: TextFieldValue): EditorBlock =
+        when (block) {
+            is EditorBlock.Paragraph -> block.copy(value = newValue)
+            is EditorBlock.Heading -> block.copy(value = newValue)
+            is EditorBlock.Bullet -> block.copy(value = newValue)
+            is EditorBlock.Numbered -> block.copy(value = newValue)
+            is EditorBlock.Checkbox -> block.copy(value = newValue)
+            else -> block
+        }
+
+    private fun split(value: TextFieldValue): Pair<TextFieldValue, TextFieldValue> {
+        val cursor = value.selection.start
+        return TextFieldValue(value.text.substring(0, cursor)) to
+                TextFieldValue(value.text.substring(cursor))
+    }
+
+    private fun extractText(block: EditorBlock): String = when (block) {
+        is EditorBlock.Paragraph -> block.value.text
+        is EditorBlock.Heading -> block.value.text
+        is EditorBlock.Bullet -> block.value.text
+        is EditorBlock.Numbered -> block.value.text
+        is EditorBlock.Checkbox -> block.value.text
+        else -> ""
+    }
+
+
+    fun handleAction(action: NoteAction) {
+        viewModelScope.launch { noteActionHandler.handle(action) }
     }
 
     private fun loadNote(noteId: Long) {
         viewModelScope.launch {
-            val note = repo.getNoteById(noteId)
             val reminder = reminderRepo.getReminder(noteId)
-
-            note?.let {
-
-                val normalizedContent = enforceTitleHeading(it.content.text)
-
-                val cursor = normalizedContent
-                    .lineSequence()
-                    .first()
-                    .length
-
+            repo.getNoteById(noteId)?.let { note ->
+                val parsedBlocks = parseMarkdownToBlocks(note.content.text)
                 setState {
                     copy(
-                        noteId = it.id,
-                        title = extractTitle(normalizedContent),
-                        content = TextFieldValue(
-                            text = normalizedContent,
-                            selection = TextRange(cursor)
-                        ),
+                        noteId = note.id,
+                        title = note.title,
+                        blocks = parsedBlocks,
+                        currentBlockId = parsedBlocks.firstOrNull()?.id,
                         reminderTime = reminder.reminderAt,
-                        folderId = it.folderId,
-                        createdAt = it.createdAt,
+                        folderId = note.folderId,
+                        createdAt = note.createdAt
                     )
                 }
             }
         }
     }
 
-
-    private fun updateContent(value: TextFieldValue) {
-        val oldText = state.value.content.text
-        var text = value.text
-        val selection = value.selection
-
-        val isDeleting = text.length < oldText.length
-
-        if (!isDeleting && text.endsWith("\n")) {
-
-            val lines = text.lines()
-            val prev = lines.getOrNull(lines.size - 2) ?: ""
-
-            if (prev.startsWith("- [ ]") && prev.length > 5) {
-
-                val newText = "$text- [ ] "
-
-                setState {
-                    copy(
-                        content = value.copy(
-                            text = newText,
-                            selection = TextRange(newText.length)
-                        ),
-                        title = extractTitle(newText)
-                    )
-                }
-
-                updateTyping(newText)
-                return
-            }
-
-            if (prev.startsWith("- [x]") && prev.length > 5) {
-
-                val newText = "$text- [x] "
-
-                setState {
-                    copy(
-                        content = value.copy(
-                            text = newText,
-                            selection = TextRange(newText.length)
-                        ),
-                        title = extractTitle(newText)
-                    )
-                }
-
-                updateTyping(newText)
-                return
-            }
-
-            if (prev.startsWith("- ") && prev.length > 2) {
-
-                val newText = "$text- "
-
-                setState {
-                    copy(
-                        content = value.copy(
-                            text = newText,
-                            selection = TextRange(newText.length)
-                        ),
-                        title = extractTitle(newText)
-                    )
-                }
-
-                updateTyping(newText)
-                return
-            }
-
-            if (prev == "- ") {
-
-                val newText = text.dropLast(3)
-
-                setState {
-                    copy(
-                        content = value.copy(
-                            text = newText,
-                            selection = TextRange(newText.length)
-                        ),
-                        title = extractTitle(newText)
-                    )
-                }
-
-                updateTyping(newText)
-                return
-            }
-        }
-
-        if (!text.startsWith("# ")) {
-
-            text = "# " + text.removePrefix("#").trimStart()
-
-            val newStart = (selection.start + 1).coerceAtMost(text.length)
-
-            setState {
-                copy(
-                    content = value.copy(
-                        text = text,
-                        selection = TextRange(newStart)
-                    ),
-                    title = extractTitle(text)
-                )
-            }
-
-            updateTyping(text)
-            return
-        }
-
-        val newSelection = if (selection.start < 2) {
-            TextRange(2)
-        } else {
-            selection
-        }
-
-        setState {
-            copy(
-                content = value.copy(
-                    text = text,
-                    selection = newSelection
-                ),
-                title = extractTitle(text)
-            )
-        }
-
-        updateTyping(text)
-    }
-
-    private fun setReminderTime(reminderTime: Long) {
+    private fun setReminderTime(time: Long) {
         viewModelScope.launch {
-
-            val id = state.value.noteId ?: return@launch
-
-            reminderRepo.setReminder(id, reminderTime)
-
-            setState {
-                copy(reminderTime = reminderTime)
+            state.value.noteId?.let { id ->
+                reminderRepo.setReminder(id, time)
+                setState { copy(reminderTime = time) }
             }
         }
     }
 
     private fun removeReminder() {
         viewModelScope.launch {
-
-            val id = state.value.noteId ?: return@launch
-
-            reminderRepo.setReminder(
-                id,
-                ReminderConstants.NO_REMINDER
-            )
-
-            setState {
-                copy(reminderTime = ReminderConstants.NO_REMINDER)
+            state.value.noteId?.let { id ->
+                reminderRepo.deleteReminder(id)
+                setState { copy(reminderTime = ReminderConstants.NO_REMINDER) }
             }
         }
     }
 
     private fun saveNote(exitAfter: Boolean = false) {
-        if (state.value.isSaving) return
-
         viewModelScope.launch {
-
-            val current = state.value
-            val now = System.currentTimeMillis()
-
-            val text = current.content.text
-            val meaningful = isMeaningfulContent(text)
-
-            if (!meaningful) {
-                current.noteId?.let {
-                    repo.deleteNoteById(it)
-                }
-
-                if (exitAfter) {
-                    sendEvent(EditorEvent.NoteDeleted)
-                }
-                return@launch
-            }
-
-            setState { copy(isSaving = true) }
-
+            val markdown = blocksToMarkdown(state.value.blocks)
+            val title = extractTitle(markdown)
             val note = Note(
-                id = current.noteId ?: 0,
-                title = current.title,
-                content = current.content,
-                folderId = current.folderId,
-                createdAt = current.createdAt ?: now,
-                updatedAt = now
+                id = state.value.noteId ?: 0,
+                title = title,
+                content = TextFieldValue(markdown),
+                folderId = state.value.folderId,
+                createdAt = state.value.createdAt ?: System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
             )
-
-            if (current.noteId == null) {
-                // 🔥 CREATE ONCE
-                val newId = repo.createNote(note)
-
-                setState {
-                    copy(
-                        noteId = newId,           // ✅ IMPORTANT
-                        createdAt = now,
-                        isSaving = false
-                    )
-                }
-
-                isExisting = true // ✅ mark as existing
-            } else {
-                // 🔥 UPDATE ONLY
-                repo.updateNote(note)
-
-                setState {
-                    copy(isSaving = false)
-                }
+            val id = if (note.id == 0L) repo.createNote(note) else {
+                repo.updateNote(note); note.id
             }
-
-            if (exitAfter) {
-                sendEvent(EditorEvent.NoteSaved)
-            }
+            if (state.value.noteId == null) setState { copy(noteId = id) }
+            if (exitAfter) sendEvent(EditorEvent.NoteSaved)
         }
     }
 
@@ -345,145 +553,229 @@ class EditorViewModel @Inject constructor(
     }
 
     private fun extractTitle(content: String): String {
-        val firstLine = content
-            .lineSequence()
-            .firstOrNull()
-            ?.trim()
-            ?: ""
-
-        return if (firstLine.startsWith("# ")) {
-            firstLine.removePrefix("# ").trim()
-        } else {
-            firstLine.trim()
-        }.take(80)
-    }
-
-    private fun enforceTitleHeading(content: String): String {
-        if (content.isBlank()) {
-            return "# "
-        }
-
-        val lines = content.lines().toMutableList()
-        val firstLine = lines[0]
-
-        val cleaned = firstLine
-            .removePrefix("#")
-            .trim()
-
-        lines[0] = "# $cleaned"
-
-        return lines.joinToString("\n")
-    }
-
-    private fun isMeaningfulContent(content: String): Boolean {
-        val cleaned = content
-            .removePrefix("#")
-            .trim()
-
-        return cleaned.isNotEmpty()
+        val firstLine = content.lines().firstOrNull { it.isNotBlank() } ?: "Untitled"
+        return firstLine
+            .removePrefix("### ").removePrefix("## ").removePrefix("# ")
+            .removePrefix("- [ ] ").removePrefix("- [x] ").removePrefix("- ")
+            .take(30)
     }
 
     @OptIn(FlowPreview::class)
     private fun observeAutosave() {
         viewModelScope.launch {
-            typingFlow
-                .debounce(300)
-                .collect {
-                    saveNote()
-                }
+            typingFlow.debounce(2000).collect {
+                if (it.isNotBlank()) saveNote()
+            }
         }
     }
 
-    private fun updateTyping(text: String) {
-        viewModelScope.launch {
-            typingFlow.emit(text)
-        }
+    private fun updateTyping(content: String) {
+        typingFlow.value = content
     }
 
     private fun openFolderPicker() {
         viewModelScope.launch {
-            val folders = folderRepo.getFolders().first()
-            val id = state.value.noteId ?: return@launch
-
+            val folders = folderRepo.getFolders().firstOrNull() ?: emptyList()
             setState {
                 copy(
-                    dialog = NoteDialog.Folder(folders, id),
                     folders = folders,
-                    isFolderPickerVisible = true
+                    dialog = NoteDialog.Folder(
+                        folders,
+                        state.value.noteId ?: 0L,
+                        state.value.folderId
+                    )
                 )
             }
         }
     }
 
     private fun assignToFolder(folderId: Long?) {
-        setState {
-            copy(
-                folderId = folderId,
-                isFolderPickerVisible = false
-            )
-        }
-
+        setState { copy(folderId = folderId, dialog = NoteDialog.None) }
         saveNote()
     }
 
     private fun createFolder() {
         viewModelScope.launch {
-
-            val name = state.value.newFolderName.trim()
-
-            if (name.isEmpty()) return@launch
-
-            val folder = Folder(
-                name = name,
-                createdAt = System.currentTimeMillis()
+            val id = folderRepo.createFolder(
+                Folder(name = state.value.newFolderName, createdAt = System.currentTimeMillis())
             )
-
-            val id = folderRepo.createFolder(folder)
-
-            // 🔥 assign immediately
             assignToFolder(id)
-
-            setState {
-                copy(
-                    newFolderName = "",
-                    isCreatingFolder = false
-                )
-            }
+            setState { copy(isCreatingFolder = false, newFolderName = "") }
         }
     }
 
-    private fun toggleCheckbox(lineIndex: Int, checked: Boolean) {
+    fun toggleCheckbox(id: String) {
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == id }
+        if (index == -1) return
+        val block = blocks[index] as? EditorBlock.Checkbox ?: return
+        blocks[index] = block.copy(checked = !block.checked)
+        setState { copy(blocks = blocks) }
+        updateTyping(blocksToMarkdown(blocks))
+    }
 
-        val lines = state.value.content.text.lines().toMutableList()
+    fun insertCheckboxBlock() {
+        insertBlockBelowCurrent(EditorBlock.Checkbox(checked = false, value = TextFieldValue("")))
+    }
 
-        if (lineIndex >= lines.size) return
+    fun insertBulletBlock() {
+        insertBlockBelowCurrent(EditorBlock.Bullet(value = TextFieldValue("")))
+    }
 
-        val line = lines[lineIndex]
+    fun insertNumberedBlock() {
+        val currentId = state.value.currentBlockId
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == currentId }
 
-        val newLine = when {
+        val number = calculateNextNumber(blocks, index)
 
-            line.startsWith("- [ ]") -> {
-                "- [x]" + line.removePrefix("- [ ]")
-            }
+        val newBlock = EditorBlock.Numbered(
+            number = number,
+            value = TextFieldValue("")
+        )
 
-            line.startsWith("- [x]") -> {
-                "- [ ]" + line.removePrefix("- [x]")
-            }
-
-            else -> return
-        }
-
-        lines[lineIndex] = newLine
-
-        val newText = lines.joinToString("\n")
+        if (index == -1) blocks.add(newBlock)
+        else blocks.add(index + 1, newBlock)
 
         setState {
             copy(
-                content = state.value.content.copy(
-                    text = newText,
-                    selection = state.value.content.selection
-                )
+                blocks = blocks,
+                currentBlockId = newBlock.id,
+                currentSelection = TextRange.Zero
             )
         }
     }
+
+    private fun calculateNextNumber(blocks: List<EditorBlock>, index: Int): Int {
+        if (index < 0) return 1
+
+        val prev = blocks.getOrNull(index)
+        return if (prev is EditorBlock.Numbered) prev.number + 1 else 1
+    }
+
+
+    private fun insertImageBlock(url: String) {
+        val imageBlock = EditorBlock.Image(url = url)
+        val paragraphBlock = EditorBlock.Paragraph(value = TextFieldValue(""))
+
+        val currentId = state.value.currentBlockId
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == currentId }
+
+        if (index == -1) {
+            blocks.add(imageBlock)
+            blocks.add(paragraphBlock)
+        } else {
+            blocks.add(index + 1, imageBlock)
+            blocks.add(index + 2, paragraphBlock)
+        }
+
+        setState {
+            copy(
+                blocks = blocks,
+                currentBlockId = paragraphBlock.id,
+                currentSelection = TextRange.Zero
+            )
+        }
+        updateTyping(blocksToMarkdown(blocks))
+    }
+
+    fun insertLinkBlock(text: String, url: String) {
+        val currentId = state.value.currentBlockId ?: return
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == currentId }
+        if (index == -1) return
+
+        val block = blocks[index]
+        val value = when (block) {
+            is EditorBlock.Paragraph -> block.value
+            is EditorBlock.Heading -> block.value
+            is EditorBlock.Bullet -> block.value
+            is EditorBlock.Checkbox -> block.value
+            else -> return
+        }
+
+        val linkMd = "[$text]($url)"
+        val newText = value.text.replaceRange(value.selection.start, value.selection.end, linkMd)
+        val newSelection = TextRange(value.selection.start + linkMd.length)
+        val newValue = value.copy(text = newText, selection = newSelection)
+
+        blocks[index] = updateBlockValue(block, newValue)
+        setState { copy(blocks = blocks) }
+        updateTyping(blocksToMarkdown(blocks))
+    }
+
+    private fun insertBlockBelowCurrent(newBlock: EditorBlock) {
+        val currentId = state.value.currentBlockId
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == currentId }
+
+        if (index == -1) blocks.add(newBlock)
+        else blocks.add(index + 1, newBlock)
+
+        setState {
+            copy(
+                blocks = blocks,
+                currentBlockId = newBlock.id,
+                currentSelection = TextRange.Zero
+            )
+        }
+        updateTyping(blocksToMarkdown(blocks))
+    }
+
+    private fun normalizeNumbering(blocks: List<EditorBlock>): List<EditorBlock> {
+        val counters = mutableMapOf<Int, Int>()
+
+        return blocks.map { block ->
+            if (block is EditorBlock.Numbered) {
+                val level = block.indent
+                val next = (counters[level] ?: 0) + 1
+                counters[level] = next
+
+                // reset deeper levels
+                counters.keys.filter { it > level }.forEach { counters[it] = 0 }
+
+                block.copy(number = next)
+            } else {
+                counters.clear() // Reset numbering when list is interrupted
+                block
+            }
+        }
+    }
+
+    fun indentBlock(id: String) {
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == id }
+        if (index == -1) return
+
+        when (val block = blocks[index]) {
+            is EditorBlock.Bullet -> blocks[index] = block.copy(indent = block.indent + 1)
+            is EditorBlock.Numbered -> blocks[index] = block.copy(indent = block.indent + 1)
+            else -> return
+        }
+
+        setState { copy(blocks = normalizeNumbering(blocks)) }
+    }
+
+    fun outdentBlock(id: String) {
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == id }
+        if (index == -1) return
+
+        when (val block = blocks[index]) {
+            is EditorBlock.Bullet -> {
+                blocks[index] = block.copy(indent = (block.indent - 1).coerceAtLeast(0))
+            }
+            is EditorBlock.Numbered -> {
+                blocks[index] = block.copy(indent = (block.indent - 1).coerceAtLeast(0))
+            }
+            else -> return
+        }
+
+        setState { copy(blocks = normalizeNumbering(blocks)) }
+    }
+
+
+    private fun ensureNotEmpty(blocks: List<EditorBlock>): List<EditorBlock> =
+        blocks.ifEmpty { listOf(EditorBlock.Paragraph(value = TextFieldValue(""))) }
 }

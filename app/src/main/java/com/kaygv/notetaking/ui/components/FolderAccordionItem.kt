@@ -2,6 +2,7 @@ package com.kaygv.notetaking.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,12 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.ui.folder.FolderWithNotes
 
 @Composable
 fun FolderAccordionItem(
     folderWithNotes: FolderWithNotes,
     onNoteClick: (Long) -> Unit,
+    onLongPress: (Folder) -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
@@ -41,7 +44,10 @@ fun FolderAccordionItem(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { isExpanded = !isExpanded }
+                .combinedClickable(
+                    onClick = { isExpanded = !isExpanded },
+                    onLongClick = { onLongPress(folderWithNotes.folder) }
+                )
                 .padding(16.dp)
         ) {
             Text(
@@ -54,6 +60,7 @@ fun FolderAccordionItem(
         }
         if (isExpanded) {
             Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp)

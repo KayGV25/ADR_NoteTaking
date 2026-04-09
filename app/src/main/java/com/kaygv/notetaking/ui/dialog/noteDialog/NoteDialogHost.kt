@@ -1,6 +1,10 @@
-package com.kaygv.notetaking.ui.noteDialog
+package com.kaygv.notetaking.ui.dialog.noteDialog
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.kaygv.notetaking.domain.reminder.ReminderConstants
 import com.kaygv.notetaking.ui.components.FolderPickerBottomSheet
 import com.kaygv.notetaking.ui.components.SetReminderPicker
@@ -12,6 +16,8 @@ fun NoteDialogHost(
     onDismiss: () -> Unit,
     onAction: (NoteAction) -> Unit
 ) {
+    var isCreating by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
     when (dialog) {
 
         is NoteDialog.None -> Unit
@@ -37,12 +43,31 @@ fun NoteDialogHost(
 
         is NoteDialog.Folder -> {
             FolderPickerBottomSheet(
-                folders = dialog.folders, // pass from VM if needed
-                newFolderName = "",
-                isCreating = false,
-                onStartCreate = {},
-                onUpdateFolderName = {},
-                onCreate = {},
+                selectedNoteFolderId = dialog.selectedFolderId,
+                folders = dialog.folders,
+                newFolderName = newFolderName,
+                isCreating = isCreating,
+
+                onStartCreate = {
+                    isCreating = true
+                },
+
+                onUpdateFolderName = {
+                    newFolderName = it
+                },
+
+                onCreate = {
+                    if (newFolderName.isNotBlank()) {
+                        onAction(
+                            NoteAction.CreateFolderAndAssign(
+                                dialog.noteId,
+                                newFolderName
+                            )
+                        )
+                        onDismiss()
+                    }
+                },
+
                 onSelect = {
                     onAction(
                         NoteAction.AssignFolder(dialog.noteId, it)

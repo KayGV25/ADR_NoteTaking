@@ -17,6 +17,8 @@ class ReminderSchedulerImpl @Inject constructor(
 
     override fun scheduleReminder(
         noteId: Long,
+        noteTitle: String?,
+        noteContent: String?,
         triggerTime: Long
     ) {
         if (triggerTime == ReminderConstants.NO_REMINDER) return
@@ -26,7 +28,9 @@ class ReminderSchedulerImpl @Inject constructor(
         if (delay <= 0) return
 
         val data = workDataOf(
-            "noteId" to noteId
+            "noteId" to noteId,
+            "noteTitle" to noteTitle,
+            "noteContent" to noteContent
         )
 
         val request =

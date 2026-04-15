@@ -46,6 +46,10 @@ class EditorViewModel @Inject constructor(
             is EditorIntent.SetReminder -> setReminderTime(intent.reminderTime)
             is EditorIntent.RemoveReminder -> removeReminder()
             is EditorIntent.SaveNote -> {
+                if (isBlocksEmpty(state.value.blocks)) {
+                    sendEvent(EditorEvent.NoteSaved) // just exit
+                    return
+                }
                 isExisting = true
                 saveNote(exitAfter = true)
             }
@@ -63,7 +67,11 @@ class EditorViewModel @Inject constructor(
 
             is EditorIntent.OpenSetReminderPicker -> {
                 val id = state.value.noteId ?: return
-                setState { copy(dialog = NoteDialog.Reminder(id, state.value.reminderTime)) }
+                setState { copy(dialog = NoteDialog.Reminder(
+                    id,
+                    state.value.title,
+                    blocksToMarkdown(state.value.blocks),
+                    state.value.reminderTime)) }
             }
 
             is EditorIntent.DismissDialog -> setState { copy(dialog = NoteDialog.None) }
@@ -510,7 +518,11 @@ class EditorViewModel @Inject constructor(
     private fun setReminderTime(time: Long) {
         viewModelScope.launch {
             state.value.noteId?.let { id ->
-                reminderRepo.setReminder(id, time)
+                reminderRepo.setReminder(
+                    id,
+                    state.value.title,
+                    blocksToMarkdown(state.value.blocks),
+                    time)
                 setState { copy(reminderTime = time) }
             }
         }
@@ -528,7 +540,21 @@ class EditorViewModel @Inject constructor(
     private fun saveNote(exitAfter: Boolean = false) {
         viewModelScope.launch {
             val markdown = blocksToMarkdown(state.value.blocks)
+            if (isBlocksEmpty(state.value.blocks)) {
+                // If this is a new note → just exit without saving
+                if (state.value.noteId == null) {
+                    if (exitAfter) sendEvent(EditorEvent.NoteSaved)
+                    return@launch
+                }
+
+                // If note already exists → delete it (optional UX choice)
+                repo.deleteNoteById(state.value.noteId!!)
+                if (exitAfter) sendEvent(EditorEvent.NoteDeleted)
+                return@launch
+            }
+
             val title = extractTitle(markdown)
+
             val note = Note(
                 id = state.value.noteId ?: 0,
                 title = title,
@@ -537,9 +563,13 @@ class EditorViewModel @Inject constructor(
                 createdAt = state.value.createdAt ?: System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()
             )
-            val id = if (note.id == 0L) repo.createNote(note) else {
-                repo.updateNote(note); note.id
+
+            val id = if (note.id == 0L) repo.createNote(note)
+            else {
+                repo.updateNote(note)
+                note.id
             }
+
             if (state.value.noteId == null) setState { copy(noteId = id) }
             if (exitAfter) sendEvent(EditorEvent.NoteSaved)
         }
@@ -563,8 +593,10 @@ class EditorViewModel @Inject constructor(
     @OptIn(FlowPreview::class)
     private fun observeAutosave() {
         viewModelScope.launch {
-            typingFlow.debounce(2000).collect {
-                if (it.isNotBlank()) saveNote()
+            typingFlow.debounce(50).collect {
+                if (!isBlocksEmpty(state.value.blocks)) {
+                    saveNote()
+                }
             }
         }
     }
@@ -775,7 +807,16 @@ class EditorViewModel @Inject constructor(
         setState { copy(blocks = normalizeNumbering(blocks)) }
     }
 
-
-    private fun ensureNotEmpty(blocks: List<EditorBlock>): List<EditorBlock> =
-        blocks.ifEmpty { listOf(EditorBlock.Paragraph(value = TextFieldValue(""))) }
+    private fun isBlocksEmpty(blocks: List<EditorBlock>): Boolean {
+        return blocks.all { block ->
+            when (block) {
+                is EditorBlock.Paragraph -> block.value.text.isBlank()
+                is EditorBlock.Heading -> block.value.text.isBlank()
+                is EditorBlock.Bullet -> block.value.text.isBlank()
+                is EditorBlock.Numbered -> block.value.text.isBlank()
+                is EditorBlock.Checkbox -> block.value.text.isBlank()
+                is EditorBlock.Image -> false // image = not empty
+            }
+        }
+    }
 }

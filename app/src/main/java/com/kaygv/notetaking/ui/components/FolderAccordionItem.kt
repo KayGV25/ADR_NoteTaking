@@ -64,6 +64,7 @@ fun FolderAccordionItem(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp)
+                    .padding(horizontal = 16.dp)
             ) {
                 folderWithNotes.notes.forEach { note ->
                     NoteCard(

@@ -4,9 +4,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
+import androidx.compose.ui.text.AnnotatedString
 import androidx.core.app.NotificationCompat
 import com.kaygv.notetaking.MainActivity
 import com.kaygv.notetaking.R
+import com.kaygv.notetaking.ui.editor.markdown.MarkdownTransformation
 
 object NotificationHelper {
 
@@ -14,7 +17,9 @@ object NotificationHelper {
 
     fun showReminderNotification(
         context: Context,
-        noteId: Long
+        noteId: Long,
+        noteTitle: String,
+        noteContent: String
     ) {
 
         val manager =
@@ -34,15 +39,35 @@ object NotificationHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
+        val previewText = MarkdownTransformation()
+            .filter(AnnotatedString(noteContent.take(500)))
+            .text
+            .text
+
+        Log.d("REMINDER", "$noteId, $noteTitle, $noteContent")
         val notification =
             NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.notifications_active_24px)
-                .setContentTitle("Note Reminder")
+                .setContentTitle("Note Reminder | $noteTitle")
                 .setContentText("Tap to open your note")
+                .setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .bigText(previewText)
+                )
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
                 .build()
+
+//        val notification =
+//            NotificationCompat.Builder(context, CHANNEL_ID)
+//                .setSmallIcon(R.drawable.notifications_active_24px)
+//                .setContentTitle("Note Reminder | $noteTitle")
+//                .setContentText("Tap to open your note")
+//                .setPriority(NotificationCompat.PRIORITY_HIGH)
+//                .setContentIntent(pendingIntent)
+//                .setAutoCancel(true)
+//                .build()
 
         manager.notify(noteId.toInt(), notification)
     }

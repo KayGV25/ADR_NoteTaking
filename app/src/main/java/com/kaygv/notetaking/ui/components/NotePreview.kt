@@ -128,7 +128,7 @@ class NotePreviewConfig(
     val content: AnnotatedString,
     val onDismiss: () -> Unit,
     val onPreviewClick: () -> Unit,
-    val buttons: List<NotePreviewButtonConfig>,
+    val buttons: List<NotePreviewButtonConfig> = emptyList(),
     val onDelete: () -> Unit
 )
 

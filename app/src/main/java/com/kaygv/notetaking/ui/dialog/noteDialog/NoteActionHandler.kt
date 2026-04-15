@@ -16,12 +16,18 @@ class NoteActionHandler @Inject constructor(
         when (action) {
 
             is NoteAction.SetReminder -> {
-                reminderRepo.setReminder(action.noteId, action.time)
+                reminderRepo.setReminder(
+                    action.noteId,
+                    action.noteTitle,
+                    action.noteContent,
+                    action.time)
             }
 
             is NoteAction.RemoveReminder -> {
                 reminderRepo.setReminder(
                     action.noteId,
+                    action.noteTitle,
+                    action.noteContent,
                     ReminderConstants.NO_REMINDER
                 )
             }
@@ -33,10 +39,7 @@ class NoteActionHandler @Inject constructor(
 
             is NoteAction.Delete -> {
                 noteRepo.deleteNoteById(action.noteId)
-                reminderRepo.setReminder(
-                    action.noteId,
-                    ReminderConstants.NO_REMINDER
-                )
+                reminderRepo.deleteReminder(action.noteId)
             }
 
             is NoteAction.CreateFolderAndAssign -> {

@@ -20,7 +20,7 @@ class ReminderRepositoryImpl(
         )
     }
 
-    override suspend fun setReminder(noteId: Long, time: Long) {
+    override suspend fun setReminder(noteId: Long, noteTitle: String?, noteContent: String?, time: Long) {
         val reminder = Reminder(
             noteId = noteId,
             reminderAt = time
@@ -33,6 +33,8 @@ class ReminderRepositoryImpl(
         } else {
             scheduler.scheduleReminder(
                 noteId = noteId,
+                noteTitle = noteTitle,
+                noteContent = noteContent,
                 triggerTime = time
             )
         }

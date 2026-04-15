@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.MaterialTheme
@@ -137,34 +141,43 @@ fun HomeScreen(
                 },
             )
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Top),
+//            LazyColumn(
+//                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Top),
+//            )
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(horizontal = 16.dp)
             ) {
                 state.groupedNotes.forEach { (header, notes) ->
-                    item {
+                    item(span = { GridItemSpan(2) }) {
                         Text(
                             text = header,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    items(notes, key = { it.id }) { note ->
+                    items(
+                        items = notes,
+                        key = { it.id },
+                        span = { GridItemSpan(1) } // 👈 FIXED
+                    ) { note ->
                         NoteCard(
                             note,
                             onClick = {
                                 navController.navigate("${Routes.EDITOR}?noteId=${note.id}")
                             },
                             onLongClick = {
-                                viewModel.processIntent(
-                                    HomeIntent.OpenNoteMenu(note)
-                                )
+                                viewModel.processIntent(HomeIntent.OpenNoteMenu(note))
                             }
                         )
                     }
                 }
             }
+
         }
     }
 }

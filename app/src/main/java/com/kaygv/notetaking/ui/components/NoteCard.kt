@@ -33,11 +33,11 @@ fun NoteCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
             .combinedClickable(
                 onClick = { onClick() },
                 onLongClick = { onLongClick() }
             )
+            .height(128.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -49,7 +49,7 @@ fun NoteCard(
             Text(
                 text = previewText,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
         }

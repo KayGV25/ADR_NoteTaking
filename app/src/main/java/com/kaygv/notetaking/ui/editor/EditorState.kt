@@ -22,7 +22,7 @@ data class EditorState(
     ),
 
 
-    val currentBlockId: String? = null,
+    val currentBlockId: String? = blocks.first().id,
     val currentSelection: TextRange = TextRange.Zero,
 
     val reminderTime: Long = ReminderConstants.NO_REMINDER,

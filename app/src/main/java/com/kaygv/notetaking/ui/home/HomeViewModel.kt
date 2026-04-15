@@ -1,5 +1,7 @@
 package com.kaygv.notetaking.ui.home
 
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewModelScope
 import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.domain.repository.FolderRepository
@@ -116,6 +118,8 @@ class HomeViewModel @Inject constructor(
                     copy(
                         dialog = NoteDialog.Reminder(
                             state.value.selectedNote!!.id,
+                            state.value.selectedNote!!.title,
+                            state.value.selectedNote!!.content.text,
                             state.value.reminderTime
                         )
                     )
@@ -237,7 +241,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val note = state.value.notes.find { it.id == noteId }
             note?.let {
-                reminderRepo.setReminder(note.id, reminderTime)
+                reminderRepo.setReminder(
+                    note.id,
+                    state.value.selectedNote?.title,
+                    state.value.selectedNote?.content?.text,
+                    reminderTime)
             }
         }
     }

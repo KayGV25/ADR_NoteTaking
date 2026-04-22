@@ -41,7 +41,8 @@ fun NotePreview(notePreviewConfig: NotePreviewConfig) {
             // Note Preview Window
             Surface(
                 shape = MaterialTheme.shapes.large,
-                tonalElevation = 4.dp,
+                tonalElevation = 0.dp,
+                shadowElevation = 4.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
@@ -64,7 +65,8 @@ fun NotePreview(notePreviewConfig: NotePreviewConfig) {
             // Floating Action Menu
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                tonalElevation = 8.dp,
+                tonalElevation = 0.dp,
+                shadowElevation = 4.dp,
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
             ) {
@@ -77,7 +79,10 @@ fun NotePreview(notePreviewConfig: NotePreviewConfig) {
                                 button.onClick()
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(0.dp)
+                            shape = RoundedCornerShape(0.dp),
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.secondary
+                            )
                         ) {
                             Row(
                                 modifier = Modifier

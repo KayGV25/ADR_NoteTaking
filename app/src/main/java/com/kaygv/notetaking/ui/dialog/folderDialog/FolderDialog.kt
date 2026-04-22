@@ -7,4 +7,5 @@ sealed class FolderDialog {
     data class Rename(val folder: Folder) : FolderDialog()
     data class Delete(val folder: Folder) : FolderDialog()
     data class Menu(val folder: Folder) : FolderDialog()
+    data object Create : FolderDialog()
 }

@@ -1,4 +1,4 @@
-package com.kaygv.notetaking.ui.components
+package com.kaygv.notetaking.ui.components.bottomsheet
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -19,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kaygv.notetaking.domain.model.Folder
-import com.kaygv.notetaking.domain.model.Note
 import com.kaygv.notetaking.ui.theme.Typography
 
 @OptIn(ExperimentalMaterial3Api::class)

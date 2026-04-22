@@ -12,7 +12,7 @@ sealed class NoteAction {
         val noteContent: String,
     ) : NoteAction()
     data class AssignFolder(val noteId: Long, val folderId: Long?) : NoteAction()
-    data class Delete(val noteId: Long) : NoteAction()
+    data class Delete(val noteId: Long, val noteContent: String) : NoteAction()
     data class CreateFolderAndAssign(
         val noteId: Long,
         val folderName: String

@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.kaygv.notetaking.domain.repository.NoteRepository
 import com.kaygv.notetaking.domain.repository.ReminderRepository
 import com.kaygv.notetaking.utils.NotificationHelper
 import dagger.assisted.Assisted

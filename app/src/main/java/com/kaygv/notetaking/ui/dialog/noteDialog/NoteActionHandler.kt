@@ -4,6 +4,7 @@ import com.kaygv.notetaking.domain.reminder.ReminderConstants
 import com.kaygv.notetaking.domain.repository.FolderRepository
 import com.kaygv.notetaking.domain.repository.NoteRepository
 import com.kaygv.notetaking.domain.repository.ReminderRepository
+import com.kaygv.notetaking.utils.ImageStorage
 import javax.inject.Inject
 
 class NoteActionHandler @Inject constructor(
@@ -38,6 +39,7 @@ class NoteActionHandler @Inject constructor(
             }
 
             is NoteAction.Delete -> {
+                ImageStorage.deleteImagesFromContent(action.noteContent)
                 noteRepo.deleteNoteById(action.noteId)
                 reminderRepo.deleteReminder(action.noteId)
             }

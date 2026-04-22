@@ -1,17 +1,16 @@
 package com.kaygv.notetaking.ui.home
 
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewModelScope
 import com.kaygv.notetaking.domain.model.Folder
+import com.kaygv.notetaking.domain.model.Note
 import com.kaygv.notetaking.domain.repository.FolderRepository
 import com.kaygv.notetaking.domain.repository.NoteRepository
 import com.kaygv.notetaking.domain.repository.ReminderRepository
-import com.kaygv.notetaking.domain.model.Note
-import com.kaygv.notetaking.ui.mvi.BaseViewModel
 import com.kaygv.notetaking.ui.dialog.noteDialog.NoteAction
 import com.kaygv.notetaking.ui.dialog.noteDialog.NoteActionHandler
 import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
+import com.kaygv.notetaking.ui.mvi.BaseViewModel
+import com.kaygv.notetaking.utils.ImageStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -232,6 +231,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val note = state.value.notes.find { it.id == noteId }
             note?.let {
+                ImageStorage.deleteImagesFromContent(it.content.text)
                 repo.deleteNote(it)
             }
         }

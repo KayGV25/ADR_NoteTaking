@@ -1,32 +1,34 @@
 package com.kaygv.notetaking.ui.home
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -36,9 +38,9 @@ import com.kaygv.notetaking.ui.components.NotePreview
 import com.kaygv.notetaking.ui.components.NotePreviewButtonConfig
 import com.kaygv.notetaking.ui.components.NotePreviewConfig
 import com.kaygv.notetaking.ui.components.SearchBar
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialogHost
 import com.kaygv.notetaking.ui.editor.markdown.MarkdownTransformation
 import com.kaygv.notetaking.ui.navigation.Routes
-import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialogHost
 import java.util.Date
 import java.util.Locale
 
@@ -116,10 +118,12 @@ fun HomeScreen(
             FloatingActionButton(
                 onClick = {
                     navController.navigate("editor")
-                }
+                },
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Icons.Default.Edit,
                     contentDescription = "Create Note"
                 )
             }
@@ -141,29 +145,29 @@ fun HomeScreen(
                 },
             )
 
-//            LazyColumn(
-//                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Top),
-//            )
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 16.dp)
+                    .weight(1f)
             ) {
                 state.groupedNotes.forEach { (header, notes) ->
                     item(span = { GridItemSpan(2) }) {
                         Text(
                             text = header,
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
                     items(
                         items = notes,
                         key = { it.id },
-                        span = { GridItemSpan(1) } // 👈 FIXED
+                        span = { GridItemSpan(1) }
                     ) { note ->
                         NoteCard(
                             note,

@@ -3,12 +3,11 @@ package com.kaygv.notetaking.ui.folder
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -30,8 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.kaygv.notetaking.ui.components.FolderAccordionItem
+import com.kaygv.notetaking.ui.components.FolderItem
 import com.kaygv.notetaking.ui.components.SearchBar
+import com.kaygv.notetaking.ui.components.bottomsheet.FolderBottomSheet
 import com.kaygv.notetaking.ui.dialog.folderDialog.FolderDialog
 import com.kaygv.notetaking.ui.navigation.Routes
 
@@ -49,16 +49,26 @@ fun FolderScreen(
                 viewModel.processIntent(FolderIntent.DismissDialog)
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.processIntent(FolderIntent.ConfirmRename)
-                }) {
+                TextButton(
+                    onClick = {
+                        viewModel.processIntent(FolderIntent.ConfirmRename)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
                     Text("Confirm")
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    viewModel.processIntent(FolderIntent.DismissDialog)
-                }) {
+                TextButton(
+                    onClick = {
+                        viewModel.processIntent(FolderIntent.DismissDialog)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.tertiary
+                    )
+                ) {
                     Text("Cancel")
                 }
             },
@@ -80,16 +90,26 @@ fun FolderScreen(
                 viewModel.processIntent(FolderIntent.DismissDialog)
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.processIntent(FolderIntent.ConfirmDelete)
-                }) {
+                TextButton(
+                    onClick = {
+                        viewModel.processIntent(FolderIntent.ConfirmDelete)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
                     Text("Delete")
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    viewModel.processIntent(FolderIntent.DismissDialog)
-                }) {
+                TextButton(
+                    onClick = {
+                        viewModel.processIntent(FolderIntent.DismissDialog)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.tertiary
+                    )
+                ) {
                     Text("Cancel")
                 }
             },
@@ -109,9 +129,14 @@ fun FolderScreen(
             title = { Text(folder.name) },
             text = {
                 Column {
-                    TextButton(onClick = {
+                    TextButton(
+                        onClick = {
                         viewModel.processIntent(FolderIntent.OpenRenameDialog(folder))
-                    }) {
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -141,15 +166,78 @@ fun FolderScreen(
         )
     }
 
+    if (state.dialog is FolderDialog.Create) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.processIntent(FolderIntent.DismissDialog)
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.processIntent(FolderIntent.ConfirmCreate)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.processIntent(FolderIntent.DismissDialog)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.tertiary
+                    )
+                ) {
+                    Text("Cancel")
+                }
+            },
+            title = { Text("Create Folder") },
+            text = {
+                TextField(
+                    value = state.newFolderName,
+                    onValueChange = {
+                        viewModel.processIntent(FolderIntent.UpdateName(it))
+                    },
+                    placeholder = { Text("Folder name") }
+                )
+            }
+        )
+    }
+
+    if (state.selectedFolder != null) {
+        FolderBottomSheet(
+            folder = state.selectedFolder!!,
+            onDismiss = {
+                viewModel.processIntent(FolderIntent.DismissFolderBottomSheet)
+            },
+            onNoteClick = {
+                navController.navigate("${Routes.EDITOR}?noteId=$it")
+            },
+            onNoteLongPress = {
+                viewModel.processIntent(FolderIntent.OpenNoteMenu(it))
+            },
+            dialog = state.noteDialog,
+            onDialogDismiss = {
+                viewModel.processIntent(FolderIntent.DismissNoteDialog)
+            },
+            onDialogAction = { viewModel.processIntent(FolderIntent.NoteActionIntent(it))}
+        )
+    }
 
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
                     viewModel.processIntent(
-                        FolderIntent.CreateFolder
+                        FolderIntent.OpenCreateDialog
                     )
-                }
+                },
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
@@ -178,21 +266,19 @@ fun FolderScreen(
                 )
             }
 
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Top),
-                modifier = Modifier.padding(horizontal = 8.dp)
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .weight(1f)
             ) {
                 items(folders) { folder ->
-                    FolderAccordionItem(
+                    FolderItem(
                         folderWithNotes = folder,
-                        onNoteClick = {
-                            navController.navigate("${Routes.EDITOR}?noteId=$it")
-                        },
-                        onLongPress = {
-                            viewModel.processIntent(
-                                FolderIntent.OnLongPressFolder(it)
-                            )
-                        }
+                        isOpen = state.selectedFolder?.folder?.id == folder.folder.id,
+                        onClick = { viewModel.processIntent(FolderIntent.OpenFolderBottomSheet(it)) },
+                        onLongPress = { viewModel.processIntent(FolderIntent.OnLongPressFolder(it.folder)) }
                     )
                 }
 

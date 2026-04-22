@@ -8,8 +8,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.kaygv.notetaking.domain.reminder.ReminderConstants
-import com.kaygv.notetaking.ui.components.FolderPickerBottomSheet
 import com.kaygv.notetaking.ui.components.SetReminderPicker
+import com.kaygv.notetaking.ui.components.bottomsheet.FolderPickerBottomSheet
 import java.util.Calendar
 
 @Composable

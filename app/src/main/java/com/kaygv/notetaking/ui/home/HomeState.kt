@@ -1,8 +1,8 @@
 package com.kaygv.notetaking.ui.home
 
 import com.kaygv.notetaking.domain.model.Note
-import com.kaygv.notetaking.ui.mvi.MviState
 import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
+import com.kaygv.notetaking.ui.mvi.MviState
 
 data class HomeState(
     val notes: List<Note> = emptyList(),

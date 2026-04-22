@@ -6,12 +6,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kaygv.notetaking.domain.model.Note
@@ -19,30 +23,51 @@ import com.kaygv.notetaking.domain.model.Note
 @Composable
 fun NoteCard(
     note: Note,
-    onClick: () -> Unit = { },
-    onLongClick: () -> Unit = { }
+    onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {}
 ) {
     val previewText = remember(note.content) {
         note.content.text
             .lineSequence()
-            .drop(1)                // remove title
+            .drop(1)
             .joinToString(" ")
             .trim()
             .take(300)
     }
+
+    val rotation = remember(note.id) {
+        ((note.id.hashCode() % 6) - 3).toFloat()
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = { onClick() },
-                onLongClick = { onLongClick() }
-            )
             .height(128.dp)
+            .graphicsLayer {
+                rotationZ = rotation
+                shadowElevation = 12f
+                shape = RoundedCornerShape(4.dp)
+                clip = false
+            }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(text = note.title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = note.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -50,7 +75,8 @@ fun NoteCard(
                 text = previewText,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

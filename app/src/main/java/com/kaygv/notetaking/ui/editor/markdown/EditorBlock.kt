@@ -68,12 +68,6 @@ fun parseMarkdownToBlocks(text: String): List<EditorBlock> {
                 )
             }
 
-//            line.startsWith("- [x] ") ->
-//                EditorBlock.Checkbox(
-//                    checked = true,
-//                    value = TextFieldValue(line.removePrefix("- [x] "))
-//                )
-
             line.matches(Regex("""\s*-\s+.*""")) -> {
                 val indent = line.takeWhile { it == ' ' }.length / 2
                 val text = line.replaceFirst(Regex("""\s*-\s+"""), "")

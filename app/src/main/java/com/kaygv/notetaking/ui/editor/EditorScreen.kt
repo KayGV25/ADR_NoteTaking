@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,13 +43,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
@@ -56,9 +65,10 @@ import com.kaygv.notetaking.ui.components.EditorToolbar
 import com.kaygv.notetaking.ui.components.OverflowMenu
 import com.kaygv.notetaking.ui.components.OverflowMenuItem
 import com.kaygv.notetaking.ui.components.TopBar
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialogHost
 import com.kaygv.notetaking.ui.editor.markdown.EditorBlock
 import com.kaygv.notetaking.ui.editor.markdown.MarkdownTransformation
-import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialogHost
+import com.kaygv.notetaking.utils.ImageStorage
 import kotlinx.coroutines.android.awaitFrame
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -72,6 +82,7 @@ fun EditorScreen(
     val isExist = state.noteId != null
     val isReminderExist = state.reminderTime != ReminderConstants.NO_REMINDER
     val isKeyboardVisible = WindowInsets.isImeVisible
+    val context = LocalContext.current
 
     val listState = rememberLazyListState()
 
@@ -79,7 +90,8 @@ fun EditorScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            viewModel.processIntent(EditorIntent.InsertImage(it.toString()))
+            val localPath = ImageStorage.copyToInternal(context, it)
+            viewModel.processIntent(EditorIntent.InsertImage(localPath))
         }
     }
 
@@ -158,29 +170,7 @@ fun EditorScreen(
                 }
             )
         },
-        bottomBar = {
-            if (isKeyboardVisible) {
-                EditorToolbar(
-                    onBold = { viewModel.processIntent(EditorIntent.FormatBold) },
-                    onItalic = { viewModel.processIntent(EditorIntent.FormatItalic) },
-                    onUnderline = { viewModel.processIntent(EditorIntent.FormatUnderline) },
-                    onCheckbox = { viewModel.processIntent(EditorIntent.InsertCheckbox) },
-                    onBullet = { viewModel.processIntent(EditorIntent.InsertBullet) },
-                    onNumbered = { viewModel.processIntent(EditorIntent.InsertNumbered) },
-                    onInsertImage = { imagePickerLauncher.launch("image/*") },
-                    onInsertLink = { viewModel.processIntent(EditorIntent.ToggleLinkDialog) },
-                    onIndent = {
-                        state.currentBlockId?.let {
-                            viewModel.processIntent(EditorIntent.Indent(it)) } },
-                    onOutdent = {
-                        state.currentBlockId?.let {
-                            viewModel.processIntent(EditorIntent.Outdent(it)) } },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .imePadding()
-                )
-            }
-        },
+        contentWindowInsets = WindowInsets(0,0,0,0),
         modifier = Modifier.fillMaxSize()
     ) { padding ->
 
@@ -232,198 +222,245 @@ fun EditorScreen(
                     .padding(padding)
                     .padding(horizontal = 32.dp)
             ) {
-                Box(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                ) {
+                    val imePadding = WindowInsets.ime.asPaddingValues()
                     LazyColumn(
-                        // FIX 2: Remove default item spacing
                         state = listState,
-                        contentPadding = PaddingValues(bottom = 120.dp),
+                        contentPadding = PaddingValues(bottom = 120.dp + imePadding.calculateBottomPadding()),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(state.blocks, key = { it.id }) { block ->
-                            when (block) {
+                            Box(
+                                contentAlignment = Alignment.BottomStart,
+                                modifier = Modifier
+                                    .heightIn(36.dp)
+                                    .drawBehind {
+                                        val strokeWidth = 1.dp.toPx()
+                                        val y = size.height - strokeWidth / 2
+                                        drawLine(
+                                            color = Color.LightGray,
+                                            start = Offset(0f, y),
+                                            end = Offset(size.width, y),
+                                            strokeWidth = strokeWidth
+                                        )
+                                    }
+                            ) {
+                                when (block) {
 
-                                is EditorBlock.Paragraph -> {
-                                    BlockTextField(
-                                        blockId = block.id,
-                                        value = block.value,
-                                        focusedBlockId = state.currentBlockId,
-                                        visualTransformation = MarkdownTransformation(),
-                                        onEnterPressed = { viewModel.splitBlock(block.id) },
-                                        onValueChange = { viewModel.updateBlock(block.id, it) },
-                                        onKeyEvent = { event, value ->
-                                            if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace) {
-                                                if (value.selection.min == 0) {
-                                                    viewModel.mergeWithPrevious(block.id)
-                                                    true
+                                    is EditorBlock.Paragraph -> {
+                                        BlockTextField(
+                                            blockId = block.id,
+                                            value = block.value,
+                                            focusedBlockId = state.currentBlockId,
+                                            visualTransformation = MarkdownTransformation(),
+                                            onEnterPressed = { viewModel.splitBlock(block.id) },
+                                            onValueChange = { viewModel.updateBlock(block.id, it) },
+                                            onKeyEvent = { event, value ->
+                                                if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace) {
+                                                    if (value.selection.min == 0) {
+                                                        viewModel.mergeWithPrevious(block.id)
+                                                        true
+                                                    } else false
                                                 } else false
-                                            } else false
-                                        }
-                                    )
-                                }
+                                            }
+                                        )
+                                    }
 
-                                is EditorBlock.Heading -> {
-                                    BlockTextField(
-                                        blockId = block.id,
-                                        value = block.value,
-                                        focusedBlockId = state.currentBlockId,
-                                        textStyle = MaterialTheme.typography.headlineMedium,
-                                        visualTransformation = MarkdownTransformation(),
-                                        singleLine = true,
-                                        onDone = { viewModel.splitBlock(block.id) },
-                                        onEnterPressed = { viewModel.splitBlock(block.id) },
-                                        onValueChange = { viewModel.updateBlock(block.id, it) },
-                                        onKeyEvent = { event, value ->
-                                            if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace) {
-                                                if (value.selection.min == 0) {
-                                                    viewModel.mergeWithPrevious(block.id)
-                                                    true
+                                    is EditorBlock.Heading -> {
+                                        BlockTextField(
+                                            blockId = block.id,
+                                            value = block.value,
+                                            focusedBlockId = state.currentBlockId,
+                                            textStyle = MaterialTheme.typography.headlineMedium.copy(
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            visualTransformation = MarkdownTransformation(),
+                                            singleLine = true,
+                                            onDone = { viewModel.splitBlock(block.id) },
+                                            onEnterPressed = { viewModel.splitBlock(block.id) },
+                                            onValueChange = { viewModel.updateBlock(block.id, it) },
+                                            onKeyEvent = { event, value ->
+                                                if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace) {
+                                                    if (value.selection.min == 0) {
+                                                        viewModel.mergeWithPrevious(block.id)
+                                                        true
+                                                    } else false
                                                 } else false
-                                            } else false
-                                        }
-                                    )
-                                }
+                                            }
+                                        )
+                                    }
 
-                                is EditorBlock.Checkbox -> {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(start = (block.indent * 16).dp)
-                                    ) {
-                                        CompositionLocalProvider(
-                                            LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                                    is EditorBlock.Checkbox -> {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(start = (block.indent * 16).dp)
                                         ) {
-                                            Checkbox(
-                                                checked = block.checked,
-                                                onCheckedChange = { viewModel.toggleCheckbox(block.id) }
+                                            CompositionLocalProvider(
+                                                LocalMinimumInteractiveComponentSize provides Dp.Unspecified
+                                            ) {
+                                                Checkbox(
+                                                    checked = block.checked,
+                                                    onCheckedChange = { viewModel.toggleCheckbox(block.id) }
+                                                )
+                                            }
+                                            BlockTextField(
+                                                blockId = block.id,
+                                                value = block.value,
+                                                focusedBlockId = state.currentBlockId,
+                                                visualTransformation = MarkdownTransformation(),
+                                                onEnterPressed = { viewModel.splitBlock(block.id) },
+                                                onValueChange = { viewModel.updateBlock(block.id, it) },
+                                                onKeyEvent = { event, value ->
+                                                    if (event.type == KeyEventType.KeyDown) {
+                                                        when (event.key) {
+                                                            Key.Backspace -> {
+                                                                if (value.selection.min == 0) {
+                                                                    viewModel.mergeWithPrevious(block.id)
+                                                                    true
+                                                                } else false
+                                                            }
+
+                                                            Key.Tab -> {
+                                                                if (event.isShiftPressed) {
+                                                                    viewModel.processIntent(EditorIntent.Outdent(block.id))
+                                                                } else {
+                                                                    viewModel.processIntent(EditorIntent.Indent(block.id))
+                                                                }
+                                                                true
+                                                            }
+
+                                                            else -> false
+                                                        }
+                                                    } else false
+                                                }
                                             )
                                         }
-                                        BlockTextField(
-                                            blockId = block.id,
-                                            value = block.value,
-                                            focusedBlockId = state.currentBlockId,
-                                            visualTransformation = MarkdownTransformation(),
-                                            onEnterPressed = { viewModel.splitBlock(block.id) },
-                                            onValueChange = { viewModel.updateBlock(block.id, it) },
-                                            onKeyEvent = { event, value ->
-                                                if (event.type == KeyEventType.KeyDown) {
-                                                    when (event.key) {
-                                                        Key.Backspace -> {
-                                                            if (value.selection.min == 0) {
-                                                                viewModel.mergeWithPrevious(block.id)
-                                                                true
-                                                            } else false
-                                                        }
+                                    }
 
-                                                        Key.Tab -> {
-                                                            if (event.isShiftPressed) {
-                                                                viewModel.processIntent(EditorIntent.Outdent(block.id))
-                                                            } else {
-                                                                viewModel.processIntent(EditorIntent.Indent(block.id))
+                                    is EditorBlock.Bullet -> {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(start = (block.indent * 16).dp)
+                                        ) {
+                                            Text("• ")
+                                            BlockTextField(
+                                                blockId = block.id,
+                                                value = block.value,
+                                                focusedBlockId = state.currentBlockId,
+                                                visualTransformation = MarkdownTransformation(),
+                                                onEnterPressed = { viewModel.splitBlock(block.id) },
+                                                onValueChange = { viewModel.updateBlock(block.id, it) },
+                                                onKeyEvent = { event, value ->
+                                                    if (event.type == KeyEventType.KeyDown) {
+                                                        when (event.key) {
+                                                            Key.Backspace -> {
+                                                                if (value.selection.min == 0) {
+                                                                    viewModel.mergeWithPrevious(block.id)
+                                                                    true
+                                                                } else false
                                                             }
-                                                            true
-                                                        }
 
-                                                        else -> false
-                                                    }
-                                                } else false
-                                            }
+                                                            Key.Tab -> {
+                                                                if (event.isShiftPressed) {
+                                                                    viewModel.processIntent(EditorIntent.Outdent(block.id))
+                                                                } else {
+                                                                    viewModel.processIntent(EditorIntent.Indent(block.id))
+                                                                }
+                                                                true
+                                                            }
+
+                                                            else -> false
+                                                        }
+                                                    } else false
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    is EditorBlock.Numbered -> {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(start = (block.indent * 16).dp)
+                                        ) {
+                                            Text("${block.number}. ")
+                                            BlockTextField(
+                                                blockId = block.id,
+                                                value = block.value,
+                                                focusedBlockId = state.currentBlockId,
+                                                visualTransformation = MarkdownTransformation(),
+                                                onEnterPressed = { viewModel.splitBlock(block.id) },
+                                                onValueChange = { viewModel.updateBlock(block.id, it) },
+                                                onKeyEvent = { event, value ->
+                                                    if (event.type == KeyEventType.KeyDown) {
+                                                        when (event.key) {
+                                                            Key.Backspace -> {
+                                                                if (value.selection.min == 0) {
+                                                                    viewModel.mergeWithPrevious(block.id)
+                                                                    true
+                                                                } else false
+                                                            }
+
+                                                            Key.Tab -> {
+                                                                if (event.isShiftPressed) {
+                                                                    viewModel.processIntent(EditorIntent.Outdent(block.id))
+                                                                } else {
+                                                                    viewModel.processIntent(EditorIntent.Indent(block.id))
+                                                                }
+                                                                true
+                                                            }
+
+                                                            else -> false
+                                                        }
+                                                    } else false
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    is EditorBlock.Image -> {
+                                        AsyncImage(
+                                            model = block.url.toUri(),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp)
                                         )
                                     }
-                                }
-
-                                is EditorBlock.Bullet -> {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(start = (block.indent * 16).dp)
-                                    ) {
-                                        Text("• ")
-                                        BlockTextField(
-                                            blockId = block.id,
-                                            value = block.value,
-                                            focusedBlockId = state.currentBlockId,
-                                            visualTransformation = MarkdownTransformation(),
-                                            onEnterPressed = { viewModel.splitBlock(block.id) },
-                                            onValueChange = { viewModel.updateBlock(block.id, it) },
-                                            onKeyEvent = { event, value ->
-                                                if (event.type == KeyEventType.KeyDown) {
-                                                    when (event.key) {
-                                                        Key.Backspace -> {
-                                                            if (value.selection.min == 0) {
-                                                                viewModel.mergeWithPrevious(block.id)
-                                                                true
-                                                            } else false
-                                                        }
-
-                                                        Key.Tab -> {
-                                                            if (event.isShiftPressed) {
-                                                                viewModel.processIntent(EditorIntent.Outdent(block.id))
-                                                            } else {
-                                                                viewModel.processIntent(EditorIntent.Indent(block.id))
-                                                            }
-                                                            true
-                                                        }
-
-                                                        else -> false
-                                                    }
-                                                } else false
-                                            }
-                                        )
-                                    }
-                                }
-
-                                is EditorBlock.Numbered -> {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(start = (block.indent * 16).dp)
-                                    ) {
-                                        Text("${block.number}. ")
-                                        BlockTextField(
-                                            blockId = block.id,
-                                            value = block.value,
-                                            focusedBlockId = state.currentBlockId,
-                                            visualTransformation = MarkdownTransformation(),
-                                            onEnterPressed = { viewModel.splitBlock(block.id) },
-                                            onValueChange = { viewModel.updateBlock(block.id, it) },
-                                            onKeyEvent = { event, value ->
-                                                if (event.type == KeyEventType.KeyDown) {
-                                                    when (event.key) {
-                                                        Key.Backspace -> {
-                                                            if (value.selection.min == 0) {
-                                                                viewModel.mergeWithPrevious(block.id)
-                                                                true
-                                                            } else false
-                                                        }
-
-                                                        Key.Tab -> {
-                                                            if (event.isShiftPressed) {
-                                                                viewModel.processIntent(EditorIntent.Outdent(block.id))
-                                                            } else {
-                                                                viewModel.processIntent(EditorIntent.Indent(block.id))
-                                                            }
-                                                            true
-                                                        }
-
-                                                        else -> false
-                                                    }
-                                                } else false
-                                            }
-                                        )
-                                    }
-                                }
-
-                                is EditorBlock.Image -> {
-                                    AsyncImage(
-                                        model = block.url,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 8.dp)
-                                    )
                                 }
                             }
                         }
                     }
                 }
+            }
+
+            if (isKeyboardVisible) {
+                EditorToolbar(
+                    onBold = { viewModel.processIntent(EditorIntent.FormatBold) },
+                    onItalic = { viewModel.processIntent(EditorIntent.FormatItalic) },
+                    onUnderline = { viewModel.processIntent(EditorIntent.FormatUnderline) },
+                    onCheckbox = { viewModel.processIntent(EditorIntent.InsertCheckbox) },
+                    onBullet = { viewModel.processIntent(EditorIntent.InsertBullet) },
+                    onNumbered = { viewModel.processIntent(EditorIntent.InsertNumbered) },
+                    onInsertImage = { imagePickerLauncher.launch("image/*") },
+                    onInsertLink = { viewModel.processIntent(EditorIntent.ToggleLinkDialog) },
+                    onIndent = {
+                        state.currentBlockId?.let {
+                            viewModel.processIntent(EditorIntent.Indent(it))
+                        }
+                    },
+                    onOutdent = {
+                        state.currentBlockId?.let {
+                            viewModel.processIntent(EditorIntent.Outdent(it))
+                        }
+                    },
+                    modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .windowInsetsPadding(WindowInsets.ime)
+                )
             }
         }
     }

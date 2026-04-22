@@ -7,10 +7,6 @@ sealed class EditorIntent : MviIntent {
         val noteId: Long
     ) : EditorIntent()
 
-//    data class UpdateContent(
-//        val content: TextFieldValue
-//    ) : EditorIntent()
-
     data class SetReminder(
         val reminderTime: Long
     ) : EditorIntent()

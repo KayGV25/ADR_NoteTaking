@@ -9,13 +9,14 @@ import com.kaygv.notetaking.domain.reminder.ReminderConstants
 import com.kaygv.notetaking.domain.repository.FolderRepository
 import com.kaygv.notetaking.domain.repository.NoteRepository
 import com.kaygv.notetaking.domain.repository.ReminderRepository
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteAction
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteActionHandler
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 import com.kaygv.notetaking.ui.editor.markdown.EditorBlock
 import com.kaygv.notetaking.ui.editor.markdown.blocksToMarkdown
 import com.kaygv.notetaking.ui.editor.markdown.parseMarkdownToBlocks
 import com.kaygv.notetaking.ui.mvi.BaseViewModel
-import com.kaygv.notetaking.ui.dialog.noteDialog.NoteAction
-import com.kaygv.notetaking.ui.dialog.noteDialog.NoteActionHandler
-import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
+import com.kaygv.notetaking.utils.ImageStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -97,7 +98,6 @@ class EditorViewModel @Inject constructor(
 
         }
     }
-
     fun updateBlock(id: String, value: TextFieldValue) {
         val updated = state.value.blocks.toMutableList()
         val index = updated.indexOfFirst { it.id == id }
@@ -113,13 +113,20 @@ class EditorViewModel @Inject constructor(
 
         if (currentBlock is EditorBlock.Heading) {
             val cleanedText = value.text.replace("\n", " ")
-            updated[index] = currentBlock.copy(value = value.copy(text = cleanedText))
+
+            val newValue = if (cleanedText.isEmpty()) {
+                TextFieldValue("", TextRange.Zero)
+            } else {
+                value.copy(text = cleanedText)
+            }
+
+            updated[index] = currentBlock.copy(value = newValue)
 
             val normalized = normalizeNumbering(updated)
             setState {
                 copy(
                     blocks = normalized,
-                    currentSelection = value.selection
+                    currentSelection = newValue.selection
                 )
             }
             updateTyping(blocksToMarkdown(normalized))
@@ -169,28 +176,46 @@ class EditorViewModel @Inject constructor(
                 )
             )
 
-            text.startsWith("- ") && currentBlock !is EditorBlock.Bullet && currentBlock !is EditorBlock.Checkbox -> EditorBlock.Bullet(
-                id = currentBlock.id,
-                value = value.copy(
+            // FIX: Guard removed for Bullet. When the block is already a Bullet and its
+            // text starts with "- " (due to a race condition between block-type conversion
+            // and Enter being pressed), we still strip the prefix and preserve indent.
+            // Previously the guard `currentBlock !is EditorBlock.Bullet` caused "- " to be
+            // stored as the bullet's content, which then appeared as "- - " when split.
+            text.startsWith("- ") && currentBlock !is EditorBlock.Checkbox -> {
+                val stripped = value.copy(
                     text = text.removePrefix("- "),
                     selection = TextRange((value.selection.start - 2).coerceAtLeast(0))
                 )
-            )
+                when (currentBlock) {
+                    // Already a Bullet → copy to preserve indent and id
+                    is EditorBlock.Bullet -> currentBlock.copy(value = stripped)
+                    // Any other non-Checkbox block → convert to new Bullet
+                    else -> EditorBlock.Bullet(id = currentBlock.id, value = stripped)
+                }
+            }
 
-            numberedRegex.containsMatchIn(text) && currentBlock !is EditorBlock.Numbered -> {
+            // FIX: Guard removed for Numbered. Same race condition applies: if the block
+            // is already Numbered and "N. " gets stored as its text content, we strip it
+            // and preserve the block's existing number and indent.
+            numberedRegex.containsMatchIn(text) -> {
                 val match = numberedRegex.find(text)!!
                 val number = match.groupValues[1].toInt()
                 val prefixLength = match.value.length
-
-                EditorBlock.Numbered(
-                    id = currentBlock.id,
-                    number = number,
-                    indent = 0,
-                    value = value.copy(
-                        text = text.removePrefix(match.value),
-                        selection = TextRange((value.selection.start - prefixLength).coerceAtLeast(0))
-                    )
+                val stripped = value.copy(
+                    text = text.removePrefix(match.value),
+                    selection = TextRange((value.selection.start - prefixLength).coerceAtLeast(0))
                 )
+                when (currentBlock) {
+                    // Already Numbered → copy to preserve indent and id
+                    is EditorBlock.Numbered -> currentBlock.copy(value = stripped)
+                    // Any other block → convert to Numbered
+                    else -> EditorBlock.Numbered(
+                        id = currentBlock.id,
+                        number = number,
+                        indent = 0,
+                        value = stripped
+                    )
+                }
             }
 
             else -> updateBlockValue(currentBlock, value)
@@ -207,7 +232,7 @@ class EditorViewModel @Inject constructor(
         updateTyping(blocksToMarkdown(normalized))
     }
 
-    private fun formatCurrent(prefix: String, suffix: String = prefix) {
+    private fun formatCurrent(prefix: String) {
         val id = state.value.currentBlockId ?: return
         val blocks = state.value.blocks.toMutableList()
         val index = blocks.indexOfFirst { it.id == id }
@@ -392,7 +417,38 @@ class EditorViewModel @Inject constructor(
         val current = blocks[index]
         val prev = blocks[index - 1]
 
-        if (current is EditorBlock.Image || prev is EditorBlock.Image) return
+        if (current is EditorBlock.Image) {
+            ImageStorage.delete(current.url)
+            blocks.removeAt(index)
+
+            val newIndex = (index - 1).coerceAtLeast(0)
+            val newBlock = blocks.getOrNull(newIndex)
+
+            setState {
+                copy(
+                    blocks = blocks,
+                    currentBlockId = newBlock?.id,
+                    currentSelection = TextRange.Zero
+                )
+            }
+            updateTyping(blocksToMarkdown(blocks))
+            return
+        }
+
+        if (prev is EditorBlock.Image) {
+            ImageStorage.delete(prev.url)
+            blocks.removeAt(index - 1)
+
+            setState {
+                copy(
+                    blocks = blocks,
+                    currentBlockId = current.id,
+                    currentSelection = TextRange.Zero
+                )
+            }
+            updateTyping(blocksToMarkdown(blocks))
+            return
+        }
 
         val currentText = extractText(current)
 
@@ -505,7 +561,7 @@ class EditorViewModel @Inject constructor(
                         noteId = note.id,
                         title = note.title,
                         blocks = parsedBlocks,
-                        currentBlockId = parsedBlocks.firstOrNull()?.id,
+                        currentBlockId = parsedBlocks.lastOrNull()?.id,
                         reminderTime = reminder.reminderAt,
                         folderId = note.folderId,
                         createdAt = note.createdAt
@@ -577,6 +633,8 @@ class EditorViewModel @Inject constructor(
 
     private fun deleteNote(noteId: Long) {
         viewModelScope.launch {
+            val note = repo.getNoteById(noteId) ?: return@launch
+            ImageStorage.deleteImagesFromContent(note.content.text)
             repo.deleteNoteById(noteId)
             sendEvent(EditorEvent.NoteDeleted)
         }
@@ -783,6 +841,7 @@ class EditorViewModel @Inject constructor(
         when (val block = blocks[index]) {
             is EditorBlock.Bullet -> blocks[index] = block.copy(indent = block.indent + 1)
             is EditorBlock.Numbered -> blocks[index] = block.copy(indent = block.indent + 1)
+            is EditorBlock.Checkbox -> blocks[index] = block.copy(indent = block.indent + 1)
             else -> return
         }
 

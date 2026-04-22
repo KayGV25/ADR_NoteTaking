@@ -4,17 +4,13 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.domain.reminder.ReminderConstants
+import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 import com.kaygv.notetaking.ui.editor.markdown.EditorBlock
 import com.kaygv.notetaking.ui.mvi.MviState
-import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 
 data class EditorState(
     val noteId: Long? = null,
     val title: String = "",
-//    val content: TextFieldValue = TextFieldValue(
-//        text = "# ",
-//        selection = TextRange(2)
-//    ),
     val blocks: List<EditorBlock> = listOf(
         EditorBlock.Heading(
             value = TextFieldValue("")

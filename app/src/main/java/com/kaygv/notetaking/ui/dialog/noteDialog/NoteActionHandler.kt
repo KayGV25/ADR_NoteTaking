@@ -35,7 +35,11 @@ class NoteActionHandler @Inject constructor(
 
             is NoteAction.AssignFolder -> {
                 val note = noteRepo.getNoteById(action.noteId) ?: return
-                noteRepo.updateNote(note.copy(folderId = action.folderId))
+                if (note.folderId == action.folderId) {
+                    noteRepo.updateNote(note.copy(folderId = null))
+                } else {
+                    noteRepo.updateNote(note.copy(folderId = action.folderId))
+                }
             }
 
             is NoteAction.Delete -> {

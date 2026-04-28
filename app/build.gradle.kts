@@ -6,13 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.kaygv.notetaking"
+    namespace = "com.vn.kaygv.notetaking"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.kaygv.notetaking"
+        applicationId = "com.vn.kaygv.notetaking"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

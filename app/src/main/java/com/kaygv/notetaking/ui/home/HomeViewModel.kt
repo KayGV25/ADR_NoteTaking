@@ -1,6 +1,8 @@
 package com.kaygv.notetaking.ui.home
 
+import android.util.Log
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.ads.nativead.NativeAd
 import com.kaygv.notetaking.domain.model.Folder
 import com.kaygv.notetaking.domain.model.Note
 import com.kaygv.notetaking.domain.repository.FolderRepository
@@ -10,6 +12,8 @@ import com.kaygv.notetaking.ui.dialog.noteDialog.NoteAction
 import com.kaygv.notetaking.ui.dialog.noteDialog.NoteActionHandler
 import com.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 import com.kaygv.notetaking.ui.mvi.BaseViewModel
+import com.kaygv.notetaking.utils.AdConfig
+import com.kaygv.notetaking.utils.AdLoaderManager
 import com.kaygv.notetaking.utils.ImageStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
@@ -28,7 +32,8 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val repo: NoteRepository,
     private val reminderRepo: ReminderRepository,
-    private val folderRepo: FolderRepository
+    private val folderRepo: FolderRepository,
+    private val adLoaderManager: AdLoaderManager
 ) : BaseViewModel<HomeIntent, HomeState, HomeEvent>(
     HomeState()
 ) {
@@ -37,6 +42,10 @@ class HomeViewModel @Inject constructor(
 
     init {
         processIntent(HomeIntent.LoadNotes)
+
+        if (AdConfig.ENABLE_ADS) {
+            loadAds()
+        }
         viewModelScope.launch {
             searchQueryFlow
                 .debounce(300)
@@ -46,6 +55,12 @@ class HomeViewModel @Inject constructor(
                 }
         }
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        state.value.ads.forEach { it.destroy() }
+    }
+
 
     override fun processIntent(intent: HomeIntent) {
         when (intent) {
@@ -148,6 +163,7 @@ class HomeViewModel @Inject constructor(
                         groupedNotes = groupNotes(notes)
                     )
                 }
+                buildFeed(notes, state.value.ads)
             }
         }
     }
@@ -165,6 +181,7 @@ class HomeViewModel @Inject constructor(
                 groupedNotes = groupNotes(filteredNotes)
             )
         }
+        buildFeed(filteredNotes, state.value.ads)
     }
 
     private fun groupNotes(notes: List<Note>): List<Pair<String, List<Note>>> {
@@ -308,5 +325,46 @@ class HomeViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun loadAds() {
+        if (!AdConfig.ENABLE_ADS) return
+        Log.d("ADS", "Load Ads")
+
+        viewModelScope.launch {
+            val ads = adLoaderManager.loadAds(count = 5)
+            setState { copy(ads = ads) }
+
+            buildFeed(state.value.filteredNotes, ads)
+        }
+    }
+
+    private fun buildFeed(notes: List<Note>, ads: List<NativeAd>) {
+
+        val grouped = groupNotes(notes)
+        val result = mutableListOf<UiItem>()
+
+        val adInterval = 5
+        var counter = 0
+        var adIndex = 0
+
+        grouped.forEach { (header, notesInGroup) ->
+            result.add(UiItem.Header(header))
+
+            notesInGroup.forEach { note ->
+                result.add(UiItem.NoteItem(note))
+                counter++
+
+                if (
+                    AdConfig.ENABLE_ADS &&
+                    counter % adInterval == 0 &&
+                    adIndex < ads.size
+                ) {
+                    result.add(UiItem.AdItem(ads[adIndex++]))
+                }
+            }
+        }
+
+        setState { copy(feed = result) }
     }
 }

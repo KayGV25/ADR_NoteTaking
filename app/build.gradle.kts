@@ -28,6 +28,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("Boolean", "ENABLE_ADS", "true")
+            buildConfigField("String", "ADS_KEY", "\"ca-app-pub-7480696023109362/3170090443\"")
+        }
+        debug {
+            buildConfigField("Boolean", "ENABLE_ADS", "false")
+            buildConfigField("String", "ADS_KEY", "\"ca-app-pub-3940256099942544/2247696110\"")
         }
     }
     compileOptions {
@@ -36,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -73,4 +80,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.play.services.ads)
 }

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.kaygv.notetaking.domain.reminder.ReminderConstants
+import com.kaygv.notetaking.ui.components.AdCard
 import com.kaygv.notetaking.ui.components.NoteCard
 import com.kaygv.notetaking.ui.components.NotePreview
 import com.kaygv.notetaking.ui.components.NotePreviewButtonConfig
@@ -154,34 +155,45 @@ fun HomeScreen(
                     .padding(bottom = 16.dp)
                     .weight(1f)
             ) {
-                state.groupedNotes.forEach { (header, notes) ->
-                    item(span = { GridItemSpan(2) }) {
-                        Text(
-                            text = header,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
+                items(
+                    items = state.feed,
+                    span = { item ->
+                        when (item) {
+                            is UiItem.Header -> GridItemSpan(2)
+                            else -> GridItemSpan(1)
+                        }
                     }
-                    items(
-                        items = notes,
-                        key = { it.id },
-                        span = { GridItemSpan(1) }
-                    ) { note ->
-                        NoteCard(
-                            note,
-                            onClick = {
-                                navController.navigate("${Routes.EDITOR}?noteId=${note.id}")
-                            },
-                            onLongClick = {
-                                viewModel.processIntent(HomeIntent.OpenNoteMenu(note))
-                            }
-                        )
+                ) { item ->
+                    when (item) {
+
+                        is UiItem.Header -> {
+                            Text(
+                                text = item.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+
+                        is UiItem.NoteItem -> {
+                            NoteCard(
+                                item.note,
+                                onClick = {
+                                    navController.navigate("${Routes.EDITOR}?noteId=${item.note.id}")
+                                },
+                                onLongClick = {
+                                    viewModel.processIntent(HomeIntent.OpenNoteMenu(item.note))
+                                }
+                            )
+                        }
+
+                        is UiItem.AdItem -> {
+                            AdCard(item.ad)
+                        }
                     }
                 }
             }
-
         }
     }
 }

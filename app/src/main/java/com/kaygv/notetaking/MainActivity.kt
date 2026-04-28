@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.core.view.WindowCompat
+import com.google.android.gms.ads.MobileAds
 import com.kaygv.notetaking.ui.navigation.AppNavGraph
 import com.kaygv.notetaking.ui.theme.NoteTakingTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -19,6 +20,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MobileAds.initialize(this@MainActivity)
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
 

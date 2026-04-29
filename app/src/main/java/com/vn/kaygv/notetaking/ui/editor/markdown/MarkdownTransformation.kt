@@ -11,14 +11,16 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.sp
 
-class MarkdownTransformation : VisualTransformation {
+class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTransformation {
+    var lastOffsetMapping: OffsetMapping = OffsetMapping.Identity
+        private set
 
     override fun filter(text: AnnotatedString): TransformedText {
-        val raw = text.text
+        val raw = forcedPrefix + text.text
         val output = AnnotatedString.Builder()
 
-        val o2t = mutableListOf<Int>() // original index → transformed index
-        val t2o = mutableListOf<Int>() // transformed index → original index
+        val o2t = mutableListOf<Int>() // original index in raw → transformed index
+        val t2o = mutableListOf<Int>() // transformed index → original index in raw
 
         var tIndex = 0
 
@@ -170,13 +172,15 @@ class MarkdownTransformation : VisualTransformation {
         o2t.add(tIndex)
         t2o.add(raw.length)
 
+        val prefixLen = forcedPrefix.length
         val offsetMapping = object : OffsetMapping {
             override fun originalToTransformed(offset: Int): Int =
-                o2t.getOrElse(offset) { o2t.lastOrNull() ?: 0 }.coerceIn(0, tIndex)
+                o2t.getOrElse(offset + prefixLen) { o2t.lastOrNull() ?: 0 }.coerceIn(0, tIndex)
 
             override fun transformedToOriginal(offset: Int): Int =
-                t2o.getOrElse(offset) { t2o.lastOrNull() ?: raw.length }.coerceIn(0, raw.length)
+                (t2o.getOrElse(offset) { t2o.lastOrNull() ?: raw.length } - prefixLen).coerceIn(0, text.text.length)
         }
+        lastOffsetMapping = offsetMapping
 
         return TransformedText(output.toAnnotatedString(), offsetMapping)
     }

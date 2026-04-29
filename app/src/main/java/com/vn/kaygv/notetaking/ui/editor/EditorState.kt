@@ -36,4 +36,8 @@ data class EditorState(
     val dialog: NoteDialog = NoteDialog.None,
     val isImagePickerOpen: Boolean = false,
     val isLinkDialogOpen: Boolean = false,
+
+    val linkEditRange: IntRange? = null,
+    val linkEditText: String = "",
+    val linkEditUrl: String = ""
 ) : MviState

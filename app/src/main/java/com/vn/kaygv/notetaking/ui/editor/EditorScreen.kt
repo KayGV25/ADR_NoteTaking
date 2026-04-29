@@ -181,8 +181,8 @@ fun EditorScreen(
         )
 
         if (state.isLinkDialogOpen) {
-            var text by remember { mutableStateOf("") }
-            var url by remember { mutableStateOf("") }
+            var text by remember(state.linkEditText) { mutableStateOf(state.linkEditText) }
+            var url by remember(state.linkEditUrl) { mutableStateOf(state.linkEditUrl) }
 
             AlertDialog(
                 onDismissRequest = { viewModel.processIntent(EditorIntent.ToggleLinkDialog) },
@@ -193,9 +193,9 @@ fun EditorScreen(
                     }) { Text("Insert") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { viewModel.processIntent(EditorIntent.ToggleLinkDialog) }) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = {
+                        viewModel.processIntent(EditorIntent.ToggleLinkDialog)
+                    }) { Text("Cancel") }
                 },
                 title = { Text("Insert Link") },
                 text = {
@@ -256,7 +256,7 @@ fun EditorScreen(
                                             value = block.value,
                                             focusedBlockId = state.currentBlockId,
                                             visualTransformation = MarkdownTransformation(),
-                                            onEnterPressed = { viewModel.splitBlock(block.id) },
+                                            onEnterPressed = { value -> viewModel.splitBlock(block.id, value) },
                                             onValueChange = { viewModel.updateBlock(block.id, it) },
                                             onKeyEvent = { event, value ->
                                                 if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace) {
@@ -277,10 +277,10 @@ fun EditorScreen(
                                             textStyle = MaterialTheme.typography.headlineMedium.copy(
                                                 fontWeight = FontWeight.Bold
                                             ),
-                                            visualTransformation = MarkdownTransformation(),
+                                            visualTransformation = MarkdownTransformation("#".repeat(block.level) + " "),
                                             singleLine = true,
-                                            onDone = { viewModel.splitBlock(block.id) },
-                                            onEnterPressed = { viewModel.splitBlock(block.id) },
+                                            onDone = { viewModel.splitBlock(block.id, it) },
+                                            onEnterPressed = { value -> viewModel.splitBlock(block.id, value) },
                                             onValueChange = { viewModel.updateBlock(block.id, it) },
                                             onKeyEvent = { event, value ->
                                                 if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace) {
@@ -312,7 +312,7 @@ fun EditorScreen(
                                                 value = block.value,
                                                 focusedBlockId = state.currentBlockId,
                                                 visualTransformation = MarkdownTransformation(),
-                                                onEnterPressed = { viewModel.splitBlock(block.id) },
+                                                onEnterPressed = { value -> viewModel.splitBlock(block.id, value) },
                                                 onValueChange = {
                                                     viewModel.updateBlock(
                                                         block.id,
@@ -363,7 +363,7 @@ fun EditorScreen(
                                                 value = block.value,
                                                 focusedBlockId = state.currentBlockId,
                                                 visualTransformation = MarkdownTransformation(),
-                                                onEnterPressed = { viewModel.splitBlock(block.id) },
+                                                onEnterPressed = { value -> viewModel.splitBlock(block.id, value) },
                                                 onValueChange = {
                                                     viewModel.updateBlock(
                                                         block.id,
@@ -414,7 +414,7 @@ fun EditorScreen(
                                                 value = block.value,
                                                 focusedBlockId = state.currentBlockId,
                                                 visualTransformation = MarkdownTransformation(),
-                                                onEnterPressed = { viewModel.splitBlock(block.id) },
+                                                onEnterPressed = { value -> viewModel.splitBlock(block.id, value) },
                                                 onValueChange = {
                                                     viewModel.updateBlock(
                                                         block.id,

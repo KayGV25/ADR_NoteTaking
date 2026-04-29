@@ -1,7 +1,9 @@
 package com.vn.kaygv.notetaking.ui.components
 
+import com.vn.kaygv.notetaking.ui.editor.markdown.MarkdownTransformation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -25,6 +27,7 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -35,13 +38,14 @@ fun BlockTextField(
     blockId: String,
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
-    onEnterPressed: () -> Unit,
+    onEnterPressed: (TextFieldValue) -> Unit,
     onKeyEvent: (KeyEvent, TextFieldValue) -> Boolean,
     focusedBlockId: String?,
     textStyle: TextStyle = LocalTextStyle.current,
     singleLine: Boolean = false,
     visualTransformation: VisualTransformation = VisualTransformation.None,
-    onDone: () -> Unit = {}
+    onDone: (TextFieldValue) -> Unit = {},
+    onLongPress: () -> Unit = {}
 ) {
     val focusRequester = remember { FocusRequester() }
     val uriHandler = LocalUriHandler.current
@@ -75,11 +79,13 @@ fun BlockTextField(
                 return@BasicTextField
             }
             // Detect Enter via newline insertion
-            if (newValue.text.contains("\n") && !internalValue.text.contains("\n")) {
-                val withoutNewline = newValue.copy(text = newValue.text.replace("\n", ""))
-                internalValue = withoutNewline
-                onValueChange(withoutNewline)
-                onEnterPressed()
+            val newlineIndex = newValue.text.indexOfAny(charArrayOf('\n', '\r'))
+            if (newlineIndex != -1 && !internalValue.text.contains("\n") && !internalValue.text.contains("\r")) {
+                val withoutNewline = newValue.text.replace("\n", "").replace("\r", "")
+                val updatedValue = TextFieldValue(withoutNewline, TextRange(newlineIndex))
+                internalValue = updatedValue
+                onValueChange(updatedValue)
+                onEnterPressed(updatedValue)
             } else {
                 internalValue = newValue
                 onValueChange(newValue)
@@ -93,7 +99,7 @@ fun BlockTextField(
         keyboardOptions = KeyboardOptions(
             imeAction = if (singleLine) ImeAction.Done else ImeAction.Default
         ),
-        keyboardActions = KeyboardActions(onDone = { onDone() }),
+        keyboardActions = KeyboardActions(onDone = { onDone(internalValue) }),
         onTextLayout = { textLayoutResult = it },
         modifier = Modifier
             .fillMaxWidth()
@@ -103,31 +109,21 @@ fun BlockTextField(
             }
             // Link-click detector: observe taps before BasicTextField consumes them.
             .pointerInput(blockId) {
-                awaitEachGesture {
-                    // Use Initial pass to see the event before BasicTextField consumes it.
-                    val down =
-                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                    var up: PointerInputChange? = null
-
-                    // Wait for the Up event on the Initial pass
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val change = event.changes.firstOrNull { it.id == down.id }
-                        if (change == null) break
-                        if (change.changedToUp()) {
-                            up = change
-                            break
+                detectTapGestures(
+                    onLongPress = { offset ->
+                        textLayoutResult?.let { layout ->
+                            val charOffset = layout.getOffsetForPosition(offset)
+                            val newValue = internalValue.copy(selection = TextRange(charOffset))
+                            internalValue = newValue
+                            onLongPress()
+                            onValueChange(newValue)
                         }
-                        // If the finger moves significantly, consider it a scroll/drag rather than a tap
-                        if ((change.position - down.position).getDistance() > 24f) break
-                    }
-
-                    if (up != null) {
-                        val layout = textLayoutResult ?: return@awaitEachGesture
-                        val charOffset = layout.getOffsetForPosition(up.position)
+                    },
+                    onTap = { offset ->
+                        val layout = textLayoutResult ?: return@detectTapGestures
+                        val charOffset = layout.getOffsetForPosition(offset)
 
                         // Check for URL annotation at the tapped character offset.
-                        // end = charOffset + 1 ensures the range is not empty so overlaps are detected.
                         val url = layout.layoutInput.text
                             .getStringAnnotations(
                                 tag = "URL",
@@ -138,16 +134,19 @@ fun BlockTextField(
                             ?.item
 
                         if (url != null) {
-                            up.consume() // Consume the event so BasicTextField doesn't move the cursor
                             val finalUrl = if (!url.contains("://")) "https://$url" else url
                             try {
                                 uriHandler.openUri(finalUrl)
-                            } catch (e: Exception) {
-
-                            }
+                            } catch (e: Exception) {}
+                        } else {
+                            // Focus and move cursor to tap position
+                            focusRequester.requestFocus()
+                            val newValue = internalValue.copy(selection = TextRange(charOffset))
+                            internalValue = newValue
+                            onValueChange(newValue)
                         }
                     }
-                }
+                )
             }
     )
 }

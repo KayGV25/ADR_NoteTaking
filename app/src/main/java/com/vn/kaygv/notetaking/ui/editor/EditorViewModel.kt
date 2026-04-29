@@ -1,5 +1,6 @@
 package com.vn.kaygv.notetaking.ui.editor
 
+import android.util.Log
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.viewModelScope
@@ -39,6 +40,9 @@ class EditorViewModel @Inject constructor(
 
     init {
         observeAutosave()
+
+        val firstId = state.value.blocks.firstOrNull()?.id
+        setState { copy(currentBlockId = firstId) }
     }
 
     override fun processIntent(intent: EditorIntent) {
@@ -87,7 +91,14 @@ class EditorViewModel @Inject constructor(
             }
 
             is EditorIntent.ToggleLinkDialog -> {
-                setState { copy(isLinkDialogOpen = !state.value.isLinkDialogOpen) }
+                setState {
+                    copy(
+                        isLinkDialogOpen = !isLinkDialogOpen,
+                        linkEditRange = null,
+                        linkEditText = "",
+                        linkEditUrl = ""
+                    )
+                }
             }
 
             is EditorIntent.InsertImage -> insertImageBlock(intent.uri)
@@ -98,67 +109,64 @@ class EditorViewModel @Inject constructor(
 
         }
     }
+
     fun updateBlock(id: String, value: TextFieldValue) {
         val updated = state.value.blocks.toMutableList()
         val index = updated.indexOfFirst { it.id == id }
         if (index == -1) return
         val currentBlock = updated[index]
 
-        setState {
-            copy(
-                currentBlockId = id,
-                currentSelection = value.selection
-            )
-        }
-
-        if (currentBlock is EditorBlock.Heading) {
-            val cleanedText = value.text.replace("\n", " ")
-
-            val newValue = if (cleanedText.isEmpty()) {
-                TextFieldValue("", TextRange.Zero)
-            } else {
-                value.copy(text = cleanedText)
-            }
-
-            updated[index] = currentBlock.copy(value = newValue)
-
-            val normalized = normalizeNumbering(updated)
-            setState {
-                copy(
-                    blocks = normalized,
-                    currentSelection = newValue.selection
-                )
-            }
-            updateTyping(blocksToMarkdown(normalized))
-            return
-        }
-
         val text = value.text
+        Log.d("EditorViewModel", "updateBlock: $text")
         val numberedRegex = Regex("""^\s*(\d+)\.\s""")
         val newBlock = when {
-            text.startsWith("### ") -> EditorBlock.Heading(
-                id = currentBlock.id, level = 3,
-                value = value.copy(
-                    text = text.removePrefix("### "),
-                    selection = TextRange((value.selection.start - 4).coerceAtLeast(0))
-                )
-            )
+            text.startsWith("### ") -> {
+                val strippedText = text.removePrefix("### ")
+                if (currentBlock is EditorBlock.Heading && currentBlock.level == 3) {
+                    currentBlock.copy(value = value.copy(text = strippedText))
+                } else {
+                    EditorBlock.Heading(
+                        id = currentBlock.id,
+                        level = 3,
+                        value = value.copy(
+                            text = strippedText,
+                            selection = TextRange((value.selection.start - 4).coerceAtLeast(0))
+                        )
+                    )
+                }
+            }
 
-            text.startsWith("## ") -> EditorBlock.Heading(
-                id = currentBlock.id, level = 2,
-                value = value.copy(
-                    text = text.removePrefix("## "),
-                    selection = TextRange((value.selection.start - 3).coerceAtLeast(0))
-                )
-            )
+            text.startsWith("## ") -> {
+                val strippedText = text.removePrefix("## ")
+                if (currentBlock is EditorBlock.Heading && currentBlock.level == 2) {
+                    currentBlock.copy(value = value.copy(text = strippedText))
+                } else {
+                    EditorBlock.Heading(
+                        id = currentBlock.id,
+                        level = 2,
+                        value = value.copy(
+                            text = strippedText,
+                            selection = TextRange((value.selection.start - 3).coerceAtLeast(0))
+                        )
+                    )
+                }
+            }
 
-            text.startsWith("# ") -> EditorBlock.Heading(
-                id = currentBlock.id, level = 1,
-                value = value.copy(
-                    text = text.removePrefix("# "),
-                    selection = TextRange((value.selection.start - 2).coerceAtLeast(0))
-                )
-            )
+            text.startsWith("# ") -> {
+                val strippedText = text.removePrefix("# ")
+                if (currentBlock is EditorBlock.Heading && currentBlock.level == 1) {
+                    currentBlock.copy(value = value.copy(text = strippedText))
+                } else {
+                    EditorBlock.Heading(
+                        id = currentBlock.id,
+                        level = 1,
+                        value = value.copy(
+                            text = strippedText,
+                            selection = TextRange((value.selection.start - 2).coerceAtLeast(0))
+                        )
+                    )
+                }
+            }
 
             text.startsWith("- [ ] ") && currentBlock !is EditorBlock.Checkbox -> EditorBlock.Checkbox(
                 id = currentBlock.id, checked = false,
@@ -176,27 +184,17 @@ class EditorViewModel @Inject constructor(
                 )
             )
 
-            // FIX: Guard removed for Bullet. When the block is already a Bullet and its
-            // text starts with "- " (due to a race condition between block-type conversion
-            // and Enter being pressed), we still strip the prefix and preserve indent.
-            // Previously the guard `currentBlock !is EditorBlock.Bullet` caused "- " to be
-            // stored as the bullet's content, which then appeared as "- - " when split.
             text.startsWith("- ") && currentBlock !is EditorBlock.Checkbox -> {
                 val stripped = value.copy(
                     text = text.removePrefix("- "),
                     selection = TextRange((value.selection.start - 2).coerceAtLeast(0))
                 )
                 when (currentBlock) {
-                    // Already a Bullet → copy to preserve indent and id
                     is EditorBlock.Bullet -> currentBlock.copy(value = stripped)
-                    // Any other non-Checkbox block → convert to new Bullet
                     else -> EditorBlock.Bullet(id = currentBlock.id, value = stripped)
                 }
             }
 
-            // FIX: Guard removed for Numbered. Same race condition applies: if the block
-            // is already Numbered and "N. " gets stored as its text content, we strip it
-            // and preserve the block's existing number and indent.
             numberedRegex.containsMatchIn(text) -> {
                 val match = numberedRegex.find(text)!!
                 val number = match.groupValues[1].toInt()
@@ -206,9 +204,7 @@ class EditorViewModel @Inject constructor(
                     selection = TextRange((value.selection.start - prefixLength).coerceAtLeast(0))
                 )
                 when (currentBlock) {
-                    // Already Numbered → copy to preserve indent and id
                     is EditorBlock.Numbered -> currentBlock.copy(value = stripped)
-                    // Any other block → convert to Numbered
                     else -> EditorBlock.Numbered(
                         id = currentBlock.id,
                         number = number,
@@ -218,13 +214,26 @@ class EditorViewModel @Inject constructor(
                 }
             }
 
-            else -> updateBlockValue(currentBlock, value)
+            else -> {
+                if (currentBlock is EditorBlock.Heading) {
+                    val cleanedText = value.text.replace("\n", " ")
+                    val newValue = if (cleanedText.isEmpty()) {
+                        TextFieldValue("", TextRange.Zero)
+                    } else {
+                        value.copy(text = cleanedText)
+                    }
+                    currentBlock.copy(value = newValue)
+                } else {
+                    updateBlockValue(currentBlock, value)
+                }
+            }
         }
 
         updated[index] = newBlock
         val normalized = if (newBlock is EditorBlock.Numbered) normalizeNumbering(updated) else updated
         setState {
             copy(
+                currentBlockId = id,
                 blocks = normalized,
                 currentSelection = value.selection
             )
@@ -243,6 +252,7 @@ class EditorViewModel @Inject constructor(
             is EditorBlock.Paragraph -> block.value
             is EditorBlock.Heading -> block.value
             is EditorBlock.Bullet -> block.value
+            is EditorBlock.Numbered -> block.value
             is EditorBlock.Checkbox -> block.value
             else -> return
         }
@@ -326,19 +336,27 @@ class EditorViewModel @Inject constructor(
         updateTyping(blocksToMarkdown(blocks))
     }
 
-    fun splitBlock(id: String) {
+    fun splitBlock(id: String, currentValue: TextFieldValue? = null) {
         val blocks = state.value.blocks.toMutableList()
         val index = blocks.indexOfFirst { it.id == id }
         if (index == -1) return
 
         val block = blocks[index]
+        val valueToSplit = currentValue ?: when (block) {
+            is EditorBlock.Paragraph -> block.value
+            is EditorBlock.Heading -> block.value
+            is EditorBlock.Bullet -> block.value
+            is EditorBlock.Checkbox -> block.value
+            is EditorBlock.Numbered -> block.value
+            else -> return
+        }
 
         // FIX: Empty bullet or checkbox → exit the list type by replacing the block
         // in-place with a paragraph.
         val isEmptyListBlock = when (block) {
-            is EditorBlock.Bullet -> block.value.text.isEmpty()
-            is EditorBlock.Numbered -> block.value.text.isEmpty()
-            is EditorBlock.Checkbox -> block.value.text.isEmpty()
+            is EditorBlock.Bullet -> valueToSplit.text.isEmpty()
+            is EditorBlock.Numbered -> valueToSplit.text.isEmpty()
+            is EditorBlock.Checkbox -> valueToSplit.text.isEmpty()
             else -> false
         }
         if (isEmptyListBlock) {
@@ -356,14 +374,7 @@ class EditorViewModel @Inject constructor(
         }
 
         // Normal split at cursor position
-        val (before, after) = when (block) {
-            is EditorBlock.Paragraph -> split(block.value)
-            is EditorBlock.Heading -> split(block.value)
-            is EditorBlock.Bullet -> split(block.value)
-            is EditorBlock.Checkbox -> split(block.value)
-            is EditorBlock.Numbered -> split(block.value)
-            else -> return
-        }
+        val (before, after) = split(valueToSplit)
 
         val newBlock = when (block) {
             is EditorBlock.Paragraph -> EditorBlock.Paragraph(value = after)
@@ -383,16 +394,21 @@ class EditorViewModel @Inject constructor(
 
             is EditorBlock.Bullet -> EditorBlock.Bullet(
                 indent = block.indent,
-                value = after
+                value = after.copy(selection = TextRange.Zero)
             )
+
             is EditorBlock.Numbered -> EditorBlock.Numbered(
-                value = after,
+                value = after.copy(selection = TextRange.Zero),
                 number = block.number + 1,
                 indent = block.indent
             )
 
-            is EditorBlock.Checkbox -> EditorBlock.Checkbox(checked = false, value = after)
+            is EditorBlock.Checkbox -> EditorBlock.Checkbox(
+                checked = false,
+                value = after.copy(selection = TextRange.Zero)
+            )
 
+            is EditorBlock.Image -> EditorBlock.Paragraph(value = after)
         }
 
         blocks[index] = updateBlockValue(block, before)
@@ -412,17 +428,21 @@ class EditorViewModel @Inject constructor(
     fun mergeWithPrevious(id: String) {
         val blocks = state.value.blocks.toMutableList()
         val index = blocks.indexOfFirst { it.id == id }
-        if (index <= 0) return
+        if (index < 0) return
 
         val current = blocks[index]
+        if (index == 0) return
         val prev = blocks[index - 1]
+
+        // Fix: Do not merge into the title (first block if it's a heading)
+        if (index == 1 && prev is EditorBlock.Heading) return
+
 
         if (current is EditorBlock.Image) {
             ImageStorage.delete(current.url)
             blocks.removeAt(index)
 
-            val newIndex = (index - 1).coerceAtLeast(0)
-            val newBlock = blocks.getOrNull(newIndex)
+            val newBlock = blocks.getOrNull(index - 1)
 
             setState {
                 copy(
@@ -452,61 +472,31 @@ class EditorViewModel @Inject constructor(
 
         val currentText = extractText(current)
 
-        // CASE 1: Current block is empty → delete it, move cursor to end of previous.
-        // We write the new selection into the prev block's TextFieldValue so that
-        // LaunchedEffect(value) in BlockTextField detects the change and syncs internalValue.
         if (currentText.isEmpty()) {
             blocks.removeAt(index)
             val prevText = extractText(prev)
-            val cursorAtEnd = TextRange(prevText.length)
-            val updatedPrev = updateBlockValue(prev, TextFieldValue(prevText, cursorAtEnd))
+
+            val cursor = TextRange(prevText.length)
+            val updatedPrev = updateBlockValue(prev, TextFieldValue(prevText, cursor))
+
             blocks[index - 1] = updatedPrev
+
             setState {
                 copy(
                     blocks = blocks,
                     currentBlockId = updatedPrev.id,
-                    currentSelection = cursorAtEnd
+                    currentSelection = cursor
                 )
             }
             updateTyping(blocksToMarkdown(blocks))
             return
         }
 
-        // CASE 2: Current block has content → merge text into previous block.
         val prevText = extractText(prev)
         val mergedText = prevText + currentText
-        val cursorAfterMerge = TextRange(prevText.length)
+        val cursor = TextRange(prevText.length)
 
-        val updatedPrev = when (prev) {
-            is EditorBlock.Paragraph -> prev.copy(
-                value = TextFieldValue(
-                    mergedText,
-                    cursorAfterMerge
-                )
-            )
-
-            is EditorBlock.Heading -> prev.copy(
-                value = TextFieldValue(
-                    mergedText,
-                    cursorAfterMerge
-                )
-            )
-
-            is EditorBlock.Bullet -> prev.copy(value = TextFieldValue(mergedText, cursorAfterMerge))
-            is EditorBlock.Numbered -> prev.copy(
-                value = TextFieldValue(
-                    mergedText,
-                    cursorAfterMerge
-                )
-            )
-
-            is EditorBlock.Checkbox -> prev.copy(
-                value = TextFieldValue(
-                    mergedText,
-                    cursorAfterMerge
-                )
-            )
-        }
+        val updatedPrev = updateBlockValue(prev, TextFieldValue(mergedText, cursor))
 
         blocks[index - 1] = updatedPrev
         blocks.removeAt(index)
@@ -515,7 +505,7 @@ class EditorViewModel @Inject constructor(
             copy(
                 blocks = blocks,
                 currentBlockId = updatedPrev.id,
-                currentSelection = cursorAfterMerge
+                currentSelection = cursor
             )
         }
         updateTyping(blocksToMarkdown(blocks))
@@ -532,9 +522,22 @@ class EditorViewModel @Inject constructor(
         }
 
     private fun split(value: TextFieldValue): Pair<TextFieldValue, TextFieldValue> {
-        val cursor = value.selection.start
-        return TextFieldValue(value.text.substring(0, cursor)) to
-                TextFieldValue(value.text.substring(cursor))
+        val start = value.selection.start
+        val end = value.selection.end
+
+        // Normalize selection (important for IME / paste cases)
+        val cursor = minOf(start, end).coerceIn(0, value.text.length)
+
+        val beforeText = value.text.substring(0, cursor)
+        val afterText = value.text.substring(cursor)
+
+        return TextFieldValue(
+            text = beforeText,
+            selection = TextRange(beforeText.length)
+        ) to TextFieldValue(
+            text = afterText,
+            selection = TextRange(0)
+        )
     }
 
     private fun extractText(block: EditorBlock): String = when (block) {
@@ -705,7 +708,26 @@ class EditorViewModel @Inject constructor(
     }
 
     fun insertCheckboxBlock() {
-        insertBlockBelowCurrent(EditorBlock.Checkbox(checked = false, value = TextFieldValue("")))
+        val currentId = state.value.currentBlockId ?: return
+        val blocks = state.value.blocks.toMutableList()
+        val index = blocks.indexOfFirst { it.id == currentId }
+        if (index == -1) return
+
+        val newBlock = EditorBlock.Checkbox(
+            checked = false,
+            value = TextFieldValue("")
+        )
+        blocks.add(index + 1, newBlock)
+
+        setState {
+            copy(
+                blocks = blocks,
+                currentBlockId = newBlock.id,
+                currentSelection = TextRange.Zero
+            )
+        }
+
+        updateTyping(blocksToMarkdown(blocks))
     }
 
     fun insertBulletBlock() {
@@ -771,9 +793,9 @@ class EditorViewModel @Inject constructor(
     }
 
     fun insertLinkBlock(text: String, url: String) {
-        val currentId = state.value.currentBlockId ?: return
+        val id = state.value.currentBlockId ?: return
         val blocks = state.value.blocks.toMutableList()
-        val index = blocks.indexOfFirst { it.id == currentId }
+        val index = blocks.indexOfFirst { it.id == id }
         if (index == -1) return
 
         val block = blocks[index]
@@ -781,17 +803,33 @@ class EditorViewModel @Inject constructor(
             is EditorBlock.Paragraph -> block.value
             is EditorBlock.Heading -> block.value
             is EditorBlock.Bullet -> block.value
+            is EditorBlock.Numbered -> block.value
             is EditorBlock.Checkbox -> block.value
             else -> return
         }
 
         val linkMd = "[$text]($url)"
-        val newText = value.text.replaceRange(value.selection.start, value.selection.end, linkMd)
-        val newSelection = TextRange(value.selection.start + linkMd.length)
-        val newValue = value.copy(text = newText, selection = newSelection)
 
-        blocks[index] = updateBlockValue(block, newValue)
-        setState { copy(blocks = blocks) }
+        val newText = state.value.linkEditRange?.let {
+            value.text.replaceRange(it, linkMd)
+        } ?: value.text.replaceRange(value.selection.start, value.selection.end, linkMd)
+
+        val newSelection = TextRange(newText.length)
+
+        blocks[index] = updateBlockValue(
+            block,
+            value.copy(text = newText, selection = newSelection)
+        )
+
+        setState {
+            copy(
+                blocks = blocks,
+                linkEditRange = null,
+                linkEditText = "",
+                linkEditUrl = ""
+            )
+        }
+
         updateTyping(blocksToMarkdown(blocks))
     }
 
@@ -858,6 +896,9 @@ class EditorViewModel @Inject constructor(
                 blocks[index] = block.copy(indent = (block.indent - 1).coerceAtLeast(0))
             }
             is EditorBlock.Numbered -> {
+                blocks[index] = block.copy(indent = (block.indent - 1).coerceAtLeast(0))
+            }
+            is EditorBlock.Checkbox -> {
                 blocks[index] = block.copy(indent = (block.indent - 1).coerceAtLeast(0))
             }
             else -> return

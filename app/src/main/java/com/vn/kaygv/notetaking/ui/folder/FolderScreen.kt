@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -24,15 +25,23 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.vn.kaygv.notetaking.domain.reminder.ReminderConstants
 import com.vn.kaygv.notetaking.ui.components.FolderItem
+import com.vn.kaygv.notetaking.ui.components.NotePreview
+import com.vn.kaygv.notetaking.ui.components.NotePreviewButtonConfig
+import com.vn.kaygv.notetaking.ui.components.NotePreviewConfig
 import com.vn.kaygv.notetaking.ui.components.SearchBar
 import com.vn.kaygv.notetaking.ui.components.bottomsheet.FolderBottomSheet
 import com.vn.kaygv.notetaking.ui.dialog.folderDialog.FolderDialog
+import com.vn.kaygv.notetaking.ui.editor.markdown.MarkdownTransformation
+import com.vn.kaygv.notetaking.ui.home.formatTime
 import com.vn.kaygv.notetaking.ui.navigation.Routes
 
 @Composable
@@ -42,6 +51,67 @@ fun FolderScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val folders by viewModel.folder.collectAsState()
+
+    if (state.isMenuVisible && state.selectedNote != null) {
+        val note = state.selectedNote!!
+
+        val transformedContent = remember(note.content.text) {
+            MarkdownTransformation()
+                .filter(AnnotatedString(note.content.text.take(500)))
+                .text
+        }
+
+        val hasReminder = state.reminderTime != null &&
+                state.reminderTime != ReminderConstants.NO_REMINDER
+
+        NotePreview(
+            notePreviewConfig = NotePreviewConfig(
+                content = transformedContent,
+                onDismiss = {
+                    viewModel.processIntent(FolderIntent.CloseNoteMenu)
+                },
+                onPreviewClick = {
+                    navController.navigate("${Routes.EDITOR}?noteId=${note.id}")
+                },
+                buttons = listOf(
+                    NotePreviewButtonConfig(
+                        text = if(note.folderId == null) "Add to Folder" else "Change Folder",
+                        icon = Icons.Default.Add,
+                        onClick = {
+                            viewModel.processIntent(FolderIntent.OpenFolderPicker)
+                        }
+                    ),
+                    NotePreviewButtonConfig(
+                        text = if (hasReminder) {
+                            "Remove Reminder (${formatTime(state.reminderTime!!)})"
+                        } else {
+                            "Set Reminder"
+                        },
+                        icon = Icons.Default.Notifications,
+                        onClick = {
+                            if (hasReminder) {
+                                viewModel.processIntent(
+                                    FolderIntent.RemoveReminder(note.id)
+                                )
+                                viewModel.processIntent(
+                                    FolderIntent.CloseNoteMenu
+                                )
+                            } else {
+                                viewModel.processIntent(
+                                    FolderIntent.OpenSetReminderPicker
+                                )
+                            }
+                        }
+                    )
+                ),
+                onDelete = {
+                    viewModel.processIntent(FolderIntent.DeleteNote(note.id))
+                    viewModel.processIntent(FolderIntent.CloseNoteMenu)
+                }
+            )
+        )
+    }
+
 
     if (state.dialog is FolderDialog.Rename) {
         AlertDialog(

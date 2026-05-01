@@ -24,4 +24,9 @@ sealed class FolderIntent : MviIntent {
     data class OpenFolderBottomSheet(val selectedFolder: FolderWithNotes): FolderIntent()
     data object OpenCreateDialog : FolderIntent()
     data object ConfirmCreate : FolderIntent()
+    data class RemoveReminder(val noteId: Long) : FolderIntent()
+    data object CloseNoteMenu : FolderIntent()
+    data object OpenSetReminderPicker : FolderIntent()
+    data object OpenFolderPicker : FolderIntent()
+    data class DeleteNote(val noteId: Long) : FolderIntent()
 }

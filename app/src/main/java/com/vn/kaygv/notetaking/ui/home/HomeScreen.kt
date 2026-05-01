@@ -68,7 +68,7 @@ fun HomeScreen(
                 },
                 buttons = listOf(
                     NotePreviewButtonConfig(
-                        text = "Add to Folder",
+                        text =  if(note.folderId == null) "Add to Folder" else "Change Folder",
                         icon = Icons.Default.Add,
                         onClick = { viewModel.processIntent(HomeIntent.OpenFolderPicker) }
                     ),

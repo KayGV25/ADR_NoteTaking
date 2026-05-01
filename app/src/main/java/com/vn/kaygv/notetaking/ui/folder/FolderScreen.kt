@@ -54,6 +54,7 @@ fun FolderScreen(
 
     if (state.isMenuVisible && state.selectedNote != null) {
         val note = state.selectedNote!!
+        val folderName = state.selectedFolder?.folder?.name
 
         val transformedContent = remember(note.content.text) {
             MarkdownTransformation()
@@ -75,8 +76,8 @@ fun FolderScreen(
                 },
                 buttons = listOf(
                     NotePreviewButtonConfig(
-                        text = if(note.folderId == null) "Add to Folder" else "Change Folder",
-                        icon = Icons.Default.Add,
+                        text = if(note.folderId == null) "Add to Folder" else "(${folderName}) Change Folder",
+                        icon = if(note.folderId == null) Icons.Default.Add else Icons.Default.Edit,
                         onClick = {
                             viewModel.processIntent(FolderIntent.OpenFolderPicker)
                         }
@@ -192,6 +193,7 @@ fun FolderScreen(
         val folder = (state.dialog as FolderDialog.Menu).folder
 
         AlertDialog(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = {
                 viewModel.processIntent(FolderIntent.DismissDialog)
             },

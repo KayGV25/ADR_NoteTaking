@@ -105,10 +105,17 @@ class HomeViewModel @Inject constructor(
                 viewModelScope.launch {
 
                     val reminder = reminderRepo.getReminder(intent.note.id)
+                    val folderId = intent.note.folderId
+                    val folder =
+                        if(folderId == null)
+                            null
+                        else
+                            folderRepo.getFolderById(folderId)
 
                     setState {
                         copy(
                             selectedNote = intent.note,
+                            selectedNoteFolder = folder,
                             isMenuVisible = true,
                             reminderTime = reminder.reminderAt
                         )

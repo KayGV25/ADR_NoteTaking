@@ -1,6 +1,7 @@
 package com.vn.kaygv.notetaking.ui.home
 
 import com.google.android.gms.ads.nativead.NativeAd
+import com.vn.kaygv.notetaking.domain.model.Folder
 import com.vn.kaygv.notetaking.domain.model.Note
 import com.vn.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 import com.vn.kaygv.notetaking.ui.mvi.MviState
@@ -15,6 +16,7 @@ data class HomeState(
     val searchQuery: String = "",
     val isLoading: Boolean = false,
     val selectedNote: Note? = null,
+    val selectedNoteFolder: Folder? = null,
     val isMenuVisible: Boolean = false,
     val reminderTime: Long? = null,
     val newFolderName: String = "",

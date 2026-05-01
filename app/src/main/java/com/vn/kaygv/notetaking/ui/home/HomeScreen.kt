@@ -2,6 +2,7 @@ package com.vn.kaygv.notetaking.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -52,6 +53,8 @@ fun HomeScreen(
 
     if (state.isMenuVisible && state.selectedNote != null) {
         val note = state.selectedNote!!
+        val folder = state.selectedNoteFolder
+
         val transformedContent = remember(note.content.text) {
             MarkdownTransformation().filter(AnnotatedString(note.content.text.take(500))).text
         }
@@ -68,8 +71,8 @@ fun HomeScreen(
                 },
                 buttons = listOf(
                     NotePreviewButtonConfig(
-                        text =  if(note.folderId == null) "Add to Folder" else "Change Folder",
-                        icon = Icons.Default.Add,
+                        text = if(folder == null) "Add to Folder" else "(${folder.name}) Change Folder",
+                        icon = if(folder == null) Icons.Default.Add else Icons.Default.Edit,
                         onClick = { viewModel.processIntent(HomeIntent.OpenFolderPicker) }
                     ),
                     NotePreviewButtonConfig(
@@ -147,6 +150,7 @@ fun HomeScreen(
                 columns = GridCells.Fixed(2),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 16.dp),
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)

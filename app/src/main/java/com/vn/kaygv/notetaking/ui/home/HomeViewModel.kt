@@ -1,6 +1,5 @@
 package com.vn.kaygv.notetaking.ui.home
 
-import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.ads.nativead.NativeAd
 import com.vn.kaygv.notetaking.domain.model.Folder
@@ -329,7 +328,6 @@ class HomeViewModel @Inject constructor(
 
     private fun loadAds() {
         if (!AdConfig.ENABLE_ADS) return
-        Log.d("ADS", "Load Ads")
 
         viewModelScope.launch {
             val ads = adLoaderManager.loadAds(count = 5)

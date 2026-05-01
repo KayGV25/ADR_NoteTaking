@@ -9,6 +9,7 @@ import com.vn.kaygv.notetaking.ui.dialog.folderDialog.FolderDialog
 import com.vn.kaygv.notetaking.ui.dialog.noteDialog.NoteActionHandler
 import com.vn.kaygv.notetaking.ui.dialog.noteDialog.NoteDialog
 import com.vn.kaygv.notetaking.ui.mvi.BaseViewModel
+import com.vn.kaygv.notetaking.utils.ImageStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -81,17 +83,13 @@ class FolderViewModel @Inject constructor(
 
             is FolderIntent.OpenNoteMenu -> {
                 viewModelScope.launch {
-                    val folders = repo.getFolders().firstOrNull() ?: emptyList()
+                    val reminder = reminderRepo.getReminder(intent.note.id)
+
                     setState {
                         copy(
                             selectedNote = intent.note,
-                            noteDialog = NoteDialog.Folder(
-                                folders = folders,
-                                noteId = intent.note.id,
-                                selectedFolderId = folders.firstOrNull {
-                                    it.id == intent.note.folderId
-                                }?.id
-                            )
+                            isMenuVisible = true,
+                            reminderTime = reminder.reminderAt
                         )
                     }
                 }
@@ -136,6 +134,63 @@ class FolderViewModel @Inject constructor(
                         dialog = FolderDialog.Create,
                         newFolderName = ""
                     )
+                }
+            }
+
+            is FolderIntent.CloseNoteMenu -> {
+                setState {
+                    copy(
+                        selectedNote = null,
+                        isMenuVisible = false,
+                        noteDialog = NoteDialog.None
+                    )
+                }
+            }
+
+            is FolderIntent.RemoveReminder -> {
+                viewModelScope.launch {
+                    reminderRepo.deleteReminder(intent.noteId)
+                }
+            }
+
+            is FolderIntent.DeleteNote -> {
+                viewModelScope.launch {
+                    val note = noteRepo.getNotesOnce().find { it.id == intent.noteId }
+                    note?.let {
+                        ImageStorage.deleteImagesFromContent(it.content.text)
+                        noteRepo.deleteNote(it)
+                    }
+                }
+            }
+
+            is FolderIntent.OpenSetReminderPicker -> {
+                val note = state.value.selectedNote!!
+                setState {
+                    copy(
+                        noteDialog = NoteDialog.Reminder(
+                            note.id,
+                            note.title,
+                            note.content.text,
+                            state.value.reminderTime
+                        )
+                    )
+                }
+            }
+
+            is FolderIntent.OpenFolderPicker -> {
+                viewModelScope.launch {
+                    val folders = repo.getFolders().first()
+                    val note = state.value.selectedNote!!
+
+                    setState {
+                        copy(
+                            noteDialog = NoteDialog.Folder(
+                                folders,
+                                note.id,
+                                note.folderId
+                            )
+                        )
+                    }
                 }
             }
         }

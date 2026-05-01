@@ -13,5 +13,7 @@ data class FolderState(
     val noteDialog: NoteDialog = NoteDialog.None,
     val selectedNote: Note? = null,
 
-    val dialog: FolderDialog = FolderDialog.None
+    val dialog: FolderDialog = FolderDialog.None,
+    val isMenuVisible: Boolean = false,
+    val reminderTime: Long? = null,
 ) : MviState

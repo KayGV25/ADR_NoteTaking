@@ -3,13 +3,11 @@ package com.vn.kaygv.notetaking.ui.theme
 import androidx.compose.ui.graphics.Color
 
 
-// === Base palette ===
 val BaseBackground = Color(0xFFEDE9E6)
 val PrimaryAccent = Color(0xFFC9996B)
 val TextPrimary = Color(0xFF5C4F4A)
 val SecondaryAccent = Color(0xFF5C766D)
 
-// === Light Theme ===
 val md_theme_light_primary = PrimaryAccent
 val md_theme_light_onPrimary = Color.White
 val md_theme_light_primaryContainer = Color(0xFFE8C7A6)
@@ -44,7 +42,6 @@ val md_theme_light_inversePrimary = Color(0xFFE8C7A6)
 val md_theme_light_surfaceTint = PrimaryAccent
 val md_theme_light_scrim = Color.Black
 
-// === Dark Theme (muted, not AMOLED) ===
 val md_theme_dark_primary = Color(0xFFE8C7A6)
 val md_theme_dark_onPrimary = Color(0xFF3A2A1F)
 val md_theme_dark_primaryContainer = Color(0xFF6E4F37)
@@ -79,7 +76,6 @@ val md_theme_dark_inversePrimary = PrimaryAccent
 val md_theme_dark_surfaceTint = md_theme_dark_primary
 val md_theme_dark_scrim = Color.Black
 
-// === Error (warm muted red) ===
 val md_theme_light_error = Color(0xFFB04A3A)
 val md_theme_light_onError = Color(0xFFFFFFFF)
 

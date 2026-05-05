@@ -59,16 +59,6 @@ object NotificationHelper {
                 .setAutoCancel(true)
                 .build()
 
-//        val notification =
-//            NotificationCompat.Builder(context, CHANNEL_ID)
-//                .setSmallIcon(R.drawable.notifications_active_24px)
-//                .setContentTitle("Note Reminder | $noteTitle")
-//                .setContentText("Tap to open your note")
-//                .setPriority(NotificationCompat.PRIORITY_HIGH)
-//                .setContentIntent(pendingIntent)
-//                .setAutoCancel(true)
-//                .build()
-
         manager.notify(noteId.toInt(), notification)
     }
 }

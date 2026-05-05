@@ -32,7 +32,6 @@ sealed class EditorIntent : MviIntent {
     data object CreateFolder : EditorIntent()
 
     data class ToggleCheckbox(
-//        val lineIndex: Int,
         val id: String
     ) : EditorIntent()
 

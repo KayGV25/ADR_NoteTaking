@@ -142,7 +142,6 @@ fun EditorScreen(
 
     LaunchedEffect(Unit) {
         awaitFrame()
-        // Focus is handled inside BlockTextField via focusedBlockId
     }
 
     LaunchedEffect(state.currentBlockId) {

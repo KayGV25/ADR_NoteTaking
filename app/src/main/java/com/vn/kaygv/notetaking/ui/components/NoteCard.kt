@@ -154,7 +154,6 @@ fun AdCard(ad: NativeAd) {
 
             adView.addView(container)
 
-            // ✅ Correct asset binding
             adView.headlineView = headlineView
             adView.bodyView = bodyView
 

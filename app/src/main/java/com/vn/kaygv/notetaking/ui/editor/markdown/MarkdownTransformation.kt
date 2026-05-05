@@ -19,8 +19,8 @@ class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTran
         val raw = forcedPrefix + text.text
         val output = AnnotatedString.Builder()
 
-        val o2t = mutableListOf<Int>() // original index in raw → transformed index
-        val t2o = mutableListOf<Int>() // transformed index → original index in raw
+        val o2t = mutableListOf<Int>()
+        val t2o = mutableListOf<Int>()
 
         var tIndex = 0
 
@@ -46,7 +46,6 @@ class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTran
             while (i < line.length) {
                 val remaining = line.substring(i)
 
-                // Try to find a style marker
                 val styleMatch = when {
                     remaining.startsWith("***") -> Triple("***", 3, SpanStyle(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic))
                     remaining.startsWith("**") -> Triple("**", 2, SpanStyle(fontWeight = FontWeight.Bold))
@@ -60,17 +59,13 @@ class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTran
                     val (marker, mLen, style) = styleMatch
                     val end = line.indexOf(marker, i + mLen)
                     if (end != -1) {
-                        // Found a pair!
-                        // 1. Hide the opening marker
                         skipOriginal(lineOBase + i)
                         repeat(mLen) { o2t.add(tIndex) }
 
-                        // 2. Push style and parse inner content recursively
                         output.pushStyle(style)
                         parseInline(line.substring(i + mLen, end), lineOBase + i + mLen)
                         output.pop()
 
-                        // 3. Hide the closing marker
                         skipOriginal(lineOBase + end)
                         repeat(mLen) { o2t.add(tIndex) }
 
@@ -79,7 +74,6 @@ class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTran
                     }
                 }
 
-                // Handle links
                 if (remaining.startsWith("[")) {
                     val endText = line.indexOf("]", i + 1)
                     val startUrl = if (endText != -1 && endText + 1 < line.length && line[endText + 1] == '(') endText + 1 else -1
@@ -89,20 +83,17 @@ class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTran
                         val textPart = line.substring(i + 1, endText)
                         val urlPart = line.substring(startUrl + 1, endUrl)
 
-                        // Hide '['
                         skipOriginal(lineOBase + i)
                         o2t.add(tIndex)
 
                         output.pushStringAnnotation(tag = "URL", annotation = urlPart)
                         output.pushStyle(SpanStyle(color = Color.Blue, textDecoration = TextDecoration.Underline))
 
-                        // Recursively parse text inside the link
                         parseInline(textPart, lineOBase + i + 1)
 
                         output.pop()
                         output.pop()
 
-                        // Hide '](url)'
                         skipOriginal(lineOBase + endText)
                         repeat(endUrl - endText + 1) { o2t.add(tIndex) }
 
@@ -111,7 +102,6 @@ class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTran
                     }
                 }
 
-                // Default: append character
                 appendMapped(line[i], lineOBase + i)
                 i++
             }
@@ -167,7 +157,6 @@ class MarkdownTransformation(private val forcedPrefix: String = "") : VisualTran
             oIndex += line.length + 1
         }
 
-        // Sentinel: ensure o2t covers raw.length and t2o has a final entry
         skipOriginal(raw.length)
         o2t.add(tIndex)
         t2o.add(raw.length)

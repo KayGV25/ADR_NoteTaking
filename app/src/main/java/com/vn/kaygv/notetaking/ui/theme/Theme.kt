@@ -80,7 +80,6 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun NoteTakingTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {

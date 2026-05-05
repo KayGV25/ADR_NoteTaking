@@ -50,10 +50,8 @@ fun BlockTextField(
     val focusRequester = remember { FocusRequester() }
     val uriHandler = LocalUriHandler.current
 
-    // Keyed on blockId so state resets when the block identity changes (e.g. after a merge)
     var internalValue by remember(blockId) { mutableStateOf(value) }
 
-    // Sync external changes back in (selection repositioning, merge results, etc.)
     LaunchedEffect(value) {
         if (internalValue.text != value.text || internalValue.selection != value.selection) {
             internalValue = value
@@ -66,7 +64,6 @@ fun BlockTextField(
         }
     }
 
-    // Capture text layout so we can map tap positions → character offsets
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     BasicTextField(
@@ -78,7 +75,6 @@ fun BlockTextField(
                 onValueChange(clean)
                 return@BasicTextField
             }
-            // Detect Enter via newline insertion
             val newlineIndex = newValue.text.indexOfAny(charArrayOf('\n', '\r'))
             if (newlineIndex != -1 && !internalValue.text.contains("\n") && !internalValue.text.contains("\r")) {
                 val withoutNewline = newValue.text.replace("\n", "").replace("\r", "")
@@ -107,7 +103,6 @@ fun BlockTextField(
             .onPreviewKeyEvent { event ->
                 onKeyEvent(event, internalValue)
             }
-            // Link-click detector: observe taps before BasicTextField consumes them.
             .pointerInput(blockId) {
                 detectTapGestures(
                     onLongPress = { offset ->
@@ -123,7 +118,6 @@ fun BlockTextField(
                         val layout = textLayoutResult ?: return@detectTapGestures
                         val charOffset = layout.getOffsetForPosition(offset)
 
-                        // Check for URL annotation at the tapped character offset.
                         val url = layout.layoutInput.text
                             .getStringAnnotations(
                                 tag = "URL",
@@ -139,7 +133,6 @@ fun BlockTextField(
                                 uriHandler.openUri(finalUrl)
                             } catch (e: Exception) {}
                         } else {
-                            // Focus and move cursor to tap position
                             focusRequester.requestFocus()
                             val newValue = internalValue.copy(selection = TextRange(charOffset))
                             internalValue = newValue

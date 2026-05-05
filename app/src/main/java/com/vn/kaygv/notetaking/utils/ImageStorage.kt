@@ -21,7 +21,7 @@ object ImageStorage {
             }
         }
 
-        return file.toURI().toString() // returns file://...
+        return file.toURI().toString()
     }
 
     fun deleteImagesFromContent(content: String) {

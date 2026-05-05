@@ -73,7 +73,6 @@ fun FolderItem(
             .padding(24.dp)
     ) {
 
-        // ===== BACK =====
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -120,7 +119,6 @@ fun FolderItem(
             )
         }
 
-        // ===== FRONT =====
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -137,7 +135,6 @@ fun FolderItem(
                 )
         )
 
-        // ===== FOLDER NAME =====
         Text(
             text = folderWithNotes.folder.name,
             modifier = Modifier
@@ -186,39 +183,32 @@ class FolderShape(
 
             lineTo(flapStartX, flapH)
 
-            // ===== FLAP =====
             cubicTo(
                 flapStartX + actualFlapW * 0.25f, flapH * 1.2f,
                 flapStartX + actualFlapW * 0.75f, flapH * 0.15f,
                 flapStartX + actualFlapW, 0f
             )
 
-            // ===== TOP EDGE → rounded top-right =====
             lineTo(size.width - r, 0f)
             quadraticTo(
                 size.width, 0f,
                 size.width, r
             )
 
-            // ===== RIGHT SIDE =====
             lineTo(size.width, size.height - r)
 
-            // ===== BOTTOM RIGHT CORNER =====
             quadraticTo(
                 size.width, size.height,
                 size.width - r, size.height
             )
 
-            // ===== BOTTOM EDGE =====
             lineTo(r, size.height)
 
-            // ===== BOTTOM LEFT CORNER =====
             quadraticTo(
                 0f, size.height,
                 0f, size.height - r
             )
 
-            // ===== LEFT SIDE BACK TO START =====
             lineTo(0f, flapH)
 
             close()

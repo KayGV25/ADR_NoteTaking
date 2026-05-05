@@ -31,25 +31,25 @@ fun AppNavGraph(
         enterTransition = {
             slideInHorizontally(
                 animationSpec = tween(500),
-                initialOffsetX = { it } // slide from right
+                initialOffsetX = { it }
             )
         },
         exitTransition = {
             slideOutHorizontally(
                 animationSpec = tween(500),
-                targetOffsetX = { -it } // slide to left
+                targetOffsetX = { -it }
             )
         },
         popEnterTransition = {
             slideInHorizontally(
                 animationSpec = tween(500),
-                initialOffsetX = { -it } // slide from left
+                initialOffsetX = { -it }
             )
         },
         popExitTransition = {
             slideOutHorizontally(
                 animationSpec = tween(500),
-                targetOffsetX = { it } // slide to right
+                targetOffsetX = { it }
             )
         }
     ) {

@@ -52,7 +52,7 @@ class EditorViewModel @Inject constructor(
             is EditorIntent.RemoveReminder -> removeReminder()
             is EditorIntent.SaveNote -> {
                 if (isBlocksEmpty(state.value.blocks)) {
-                    sendEvent(EditorEvent.NoteSaved) // just exit
+                    sendEvent(EditorEvent.NoteSaved)
                     return
                 }
                 isExisting = true
@@ -262,13 +262,11 @@ class EditorViewModel @Inject constructor(
         var end = value.selection.end
         if (start > end) { val temp = start; start = end; end = temp }
 
-        // 1. Expand boundaries to include all adjacent formatting markers (*, _, ~)
         var left = start
         while (left > 0 && text[left - 1] in "*_~") left--
         var right = end
         while (right < text.length && text[right] in "*_~") right++
 
-        // 2. Identify the "core" content by looking for markers at the edges of this expanded range
         var contentStart = left
         while (contentStart < right && text[contentStart] in "*_~") contentStart++
         var contentEnd = right
@@ -278,7 +276,6 @@ class EditorViewModel @Inject constructor(
         val fullPrefix = text.substring(left, contentStart)
         val fullSuffix = text.substring(contentEnd, right)
 
-        // 3. Analyze current style states based on markers
         val starCount = minOf(fullPrefix.count { it == '*' }, fullSuffix.count { it == '*' })
         val hasUnderline = fullPrefix.contains("__") && fullSuffix.contains("__")
         val hasStrike = fullPrefix.contains("~~") && fullSuffix.contains("~~")
@@ -288,7 +285,6 @@ class EditorViewModel @Inject constructor(
         var underline = hasUnderline
         var strike = hasStrike
 
-        // 4. Toggle the requested style
         when (prefix) {
             "**" -> bold = !bold
             "*" -> italic = !italic
@@ -296,16 +292,13 @@ class EditorViewModel @Inject constructor(
             "~~" -> strike = !strike
         }
 
-        // 5. Reconstruct the markers and text
         val resPrefix = StringBuilder()
         val totalStars = (if (bold) 2 else 0) + (if (italic) 1 else 0)
-        // Stars go first to keep bold+italic together (***)
         if (totalStars > 0) resPrefix.append("*".repeat(totalStars))
         if (underline) resPrefix.append("__")
         if (strike) resPrefix.append("~~")
 
         val resSuffix = if (underline || strike) {
-            // Reverse order for suffix if nested
             val s = StringBuilder()
             if (strike) s.append("~~")
             if (underline) s.append("__")
@@ -317,11 +310,9 @@ class EditorViewModel @Inject constructor(
 
         val newText = text.substring(0, left) + resPrefix.toString() + content + resSuffix + text.substring(right)
 
-        // 6. Calculate new selection
         val newSelection = if (start == end && content.isEmpty()) {
             TextRange(left + resPrefix.length)
         } else {
-            // Keep selection on the content
             TextRange(left + resPrefix.length, left + resPrefix.length + content.length)
         }
 
@@ -351,8 +342,6 @@ class EditorViewModel @Inject constructor(
             else -> return
         }
 
-        // FIX: Empty bullet or checkbox → exit the list type by replacing the block
-        // in-place with a paragraph.
         val isEmptyListBlock = when (block) {
             is EditorBlock.Bullet -> valueToSplit.text.isEmpty()
             is EditorBlock.Numbered -> valueToSplit.text.isEmpty()
@@ -373,14 +362,12 @@ class EditorViewModel @Inject constructor(
             return
         }
 
-        // Normal split at cursor position
         val (before, after) = split(valueToSplit)
 
         val newBlock = when (block) {
             is EditorBlock.Paragraph -> EditorBlock.Paragraph(value = after)
 
             is EditorBlock.Heading -> {
-                // Heading always splits into heading + paragraph
                 blocks[index] = block.copy(value = before)
                 val nb = EditorBlock.Paragraph(value = after)
                 blocks.add(index + 1, nb)
@@ -434,7 +421,6 @@ class EditorViewModel @Inject constructor(
         if (index == 0) return
         val prev = blocks[index - 1]
 
-        // Fix: Do not merge into the title (first block if it's a heading)
         if (index == 1 && prev is EditorBlock.Heading) return
 
 
@@ -525,7 +511,6 @@ class EditorViewModel @Inject constructor(
         val start = value.selection.start
         val end = value.selection.end
 
-        // Normalize selection (important for IME / paste cases)
         val cursor = minOf(start, end).coerceIn(0, value.text.length)
 
         val beforeText = value.text.substring(0, cursor)
@@ -600,13 +585,11 @@ class EditorViewModel @Inject constructor(
         viewModelScope.launch {
             val markdown = blocksToMarkdown(state.value.blocks)
             if (isBlocksEmpty(state.value.blocks)) {
-                // If this is a new note → just exit without saving
                 if (state.value.noteId == null) {
                     if (exitAfter) sendEvent(EditorEvent.NoteSaved)
                     return@launch
                 }
 
-                // If note already exists → delete it (optional UX choice)
                 repo.deleteNoteById(state.value.noteId!!)
                 if (exitAfter) sendEvent(EditorEvent.NoteDeleted)
                 return@launch
@@ -860,12 +843,11 @@ class EditorViewModel @Inject constructor(
                 val next = (counters[level] ?: 0) + 1
                 counters[level] = next
 
-                // reset deeper levels
                 counters.keys.filter { it > level }.forEach { counters[it] = 0 }
 
                 block.copy(number = next)
             } else {
-                counters.clear() // Reset numbering when list is interrupted
+                counters.clear()
                 block
             }
         }
@@ -915,7 +897,7 @@ class EditorViewModel @Inject constructor(
                 is EditorBlock.Bullet -> block.value.text.isBlank()
                 is EditorBlock.Numbered -> block.value.text.isBlank()
                 is EditorBlock.Checkbox -> block.value.text.isBlank()
-                is EditorBlock.Image -> false // image = not empty
+                is EditorBlock.Image -> false
             }
         }
     }
